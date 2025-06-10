@@ -9,8 +9,23 @@ const prisma = new PrismaClient()
 // ACCESS TOKEN GENERATION
 // ============================================================================
 
+// Update the interface to include sessionId
+interface AccessTokenPayload {
+  id: string;
+  role: string;
+  type: string;
+  sessionId?: string;  // Add sessionId
+  iat: number;
+  exp: number;
+}
+
 // Updated function signature to accept an object
-export const generateAccessToken = (user: { id: string; role: string; email?: string }): string => {
+export const generateAccessToken = (user: { 
+  id: string; 
+  role: string; 
+  email?: string;
+  sessionId?: string;  // Add sessionId
+}): string => {
   try {
     const secret = config.JWT_SECRET;
     if (!secret) {
@@ -22,6 +37,7 @@ export const generateAccessToken = (user: { id: string; role: string; email?: st
       id: user.id,
       role: user.role,
       type: "access",
+      sessionId: user.sessionId,  // Include sessionId in payload
       iat: Math.floor(Date.now() / 1000),
     };
 
@@ -38,15 +54,6 @@ export const generateAccessToken = (user: { id: string; role: string; email?: st
     throw new Error(`Failed to generate access token: ${error}`);
   }
 };
-// Add a type for verifying access tokens
-interface AccessTokenPayload {
-  id: string;
-  role: string;
-  type: string;
-  iat: number;
-  exp: number;
-}
-
 export const verifyAccessToken = (token: string): AccessTokenPayload => {
   const secret = config.JWT_SECRET;
   if (!secret) {
@@ -70,7 +77,7 @@ export const verifyAccessToken = (token: string): AccessTokenPayload => {
 // JWT TOKEN GENERATION
 // ============================================================================
 
-export const generateRefreshToken = async (userId: string): Promise<{ token: string; expiresAt: Date }> => {
+export const generateRefreshToken = async (userId: string, id: string): Promise<{ token: string; expiresAt: Date }> => {
   try {
     const secret = config.JWT_SECRET
     if (!secret) {
@@ -116,7 +123,7 @@ export const generateRefreshToken = async (userId: string): Promise<{ token: str
 // TOKEN VERIFICATION
 // ============================================================================
 
-export const verifyRefreshToken = async (token: string, userId: string): Promise<boolean> => {
+export const verifyRefreshToken = async (token: string, userId: string, sessionId: string): Promise<boolean> => {
   try {
     const secret = config.JWT_SECRET
     if (!secret) {
@@ -161,7 +168,7 @@ export const verifyRefreshToken = async (token: string, userId: string): Promise
 // TOKEN INVALIDATION
 // ============================================================================
 
-export const invalidateRefreshToken = async (userId: string): Promise<void> => {
+export const invalidateRefreshToken = async (userId: string, sessionId: string): Promise<void> => {
   try {
     await prisma.user.update({
       where: { id: userId },

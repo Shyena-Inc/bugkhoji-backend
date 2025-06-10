@@ -18,11 +18,14 @@ export async function createSession(req: Request, userId: string) {
       data: {
         id: sessionId,
         userId,
-        ip,
         userAgent,
-        // location,
-        deviceInfo: {}, // Provide an empty object or appropriate device info
+        ipAddress: ip,
+        deviceOS: '',
+        deviceType: '',
+        deviceBrowser: '', 
+        location: '', 
         lastSeen: new Date(),
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) 
       }
     });
 
@@ -60,5 +63,34 @@ export async function updateSessionActivity(sessionId: string) {
   } catch (error) {
     logger.error('Error updating session activity:', error);
     throw error;
+  }
+}
+
+export async function terminateSession(req: Request, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { sessionId } = req.body;
+
+    // Verify the session belongs to the user
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId }
+    });
+
+    if (!session || session.userId !== req.user.id) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Deactivate session
+    await prisma.session.delete({
+      where: { id: sessionId }
+    });
+
+    res.json({ message: 'Session terminated successfully' });
+  } catch (error) {
+    logger.error('Error terminating session:', error);
+    res.status(500).json({ error: 'Failed to terminate session' });
   }
 }

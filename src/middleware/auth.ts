@@ -90,7 +90,7 @@ async function checkRateLimit(ip: string): Promise<boolean> {
   }
 }
 
-export async function authenticate(
+export async function   authenticate(
   req: Request,
   res: Response,
   next: NextFunction
@@ -139,6 +139,12 @@ export async function authenticate(
     let decoded: unknown;
     try {
       decoded = jwt.verify(token, jwtSecret);
+      // Enhanced debugging logs
+      logger.info("Decoded JWT payload:", decoded);
+      logger.info("Type of decoded.role:", typeof (decoded as any).role);
+      logger.info("Value of decoded.role:", (decoded as any).role);
+      logger.info("UserRole values:", Object.values(UserRole));
+      logger.info("Role included in UserRole values:", Object.values(UserRole).includes((decoded as any).role));
 
     } catch (jwtError) {
       if (jwtError instanceof jwt.TokenExpiredError) {
@@ -155,12 +161,12 @@ export async function authenticate(
 
       logger.error("Unexpected JWT error:", jwtError);
       res.status(500).json({ error: "Internal server error" });
-      return 
+      return;
     }
 
     // Validate token payload with type guard
     if (!isJwtPayload(decoded)) {
-      logger.warn(`Invalid token payload from IP: ${clientIp}`);
+      logger.warn(`Invalid token payload from IP: ${clientIp} - Decoded: ${JSON.stringify(decoded)}`);
       res.status(401).json({ error: "Invalid token payload" });
       return;
     }
@@ -350,16 +356,16 @@ export async function optionalAuth(
   next: NextFunction
 ): Promise<void> {
   const authHeader = req.headers.authorization;
+  const jwtSecret = config.JWT_SECRET; // Get secret early
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!authHeader || !authHeader.startsWith("Bearer ") || !jwtSecret) {
+    // If no header, invalid format, or no secret, proceed without auth
     return next();
   }
 
   try {
     const token = authHeader.split(" ")[1];
-    const jwtSecret = config.JWT_SECRET;
-
-    if (!jwtSecret || !token) {
+    if (!token) { // Check if token is actually present after splitting
       return next();
     }
 

@@ -6,4 +6,10 @@ export interface Session {
   location?: string;
   createdAt: Date;
   lastSeen: Date;
+  isActive: boolean;
+  deviceInfo?: {
+    browser: string;
+    os: string;
+    device: string;
+  };
 }

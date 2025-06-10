@@ -143,7 +143,7 @@ const handleLoginSuccess = async (user: UserLoginData, res: Response): Promise<v
 
   // Generate tokens
   const accessToken = generateToken(user.id, user.role)
-  const { token: refreshToken } = await generateRefreshToken(user.id)
+  const { token: refreshToken } = await generateRefreshToken(user.id, "")
 
   // Set refresh token cookie
   setRefreshTokenCookie(res, refreshToken)
@@ -546,7 +546,8 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
 
     // Verify refresh token
     const { verifyRefreshToken } = await import("../utils/token")
-    const isValid = await verifyRefreshToken(refreshToken, decoded.id)
+    const sessionId = (decoded as any)?.sessionId || ""; // fallback to empty string if not present
+    const isValid = await verifyRefreshToken(refreshToken, decoded.id, sessionId)
 
     if (!isValid) {
       logger.warn(`Invalid refresh token used for user ID: ${decoded.id}`)
@@ -575,7 +576,8 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
 
     // Generate new tokens
     const accessToken = generateToken(user.id, user.role)
-    const { token: newRefreshToken } = await generateRefreshToken(user.id)
+    // Use the previously extracted sessionId
+    const { token: newRefreshToken } = await generateRefreshToken(user.id, sessionId)
 
     // Set new refresh token cookie
     setRefreshTokenCookie(res, newRefreshToken)
@@ -610,7 +612,8 @@ router.post("/logout", async (req: Request, res: Response): Promise<void> => {
     if (userId) {
       // Invalidate refresh token
       const { invalidateRefreshToken } = await import("../utils/token")
-      await invalidateRefreshToken(userId)
+      // Pass empty string if sessionId is not available
+      await invalidateRefreshToken(userId, '')
     }
 
     // Clear refresh token cookie
