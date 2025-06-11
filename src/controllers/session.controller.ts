@@ -28,8 +28,16 @@ export async function createSession(req: Request, userId: string) {
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) 
       }
     });
-
-    return session;
+    
+    return {
+      success: true,
+      message:'Session created sucessfully',
+      session:{
+        id: session.id,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt
+      }
+    };
   } catch (error) {
     logger.error('Error creating session:', error);
     throw error;
@@ -38,19 +46,50 @@ export async function createSession(req: Request, userId: string) {
 
 export async function getSessions(req: Request, res: Response) {
   try {
+    // Check if user exists in request
+    if (!req.user) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Authentication required' 
+      });
+    }
+
     const sessions = await prisma.session.findMany({
       where: {
-        userId: req.user!.id,
+        userId: req.user.id,
+        isActive: true
+      },
+      select: {
+        id: true,
+        ipAddress: true,
+        userAgent: true,
+        deviceOS: true,
+        deviceType: true,
+        deviceBrowser: true,
+        location: true,
+        lastSeen: true,
+        createdAt: true,
+        expiresAt: true
       },
       orderBy: {
         lastSeen: 'desc'
       }
     });
 
-    res.json(sessions);
+    // Add more detailed response
+    res.json({
+      success: true,
+      count: sessions.length,
+      sessions: sessions,
+      message: sessions.length ? 'Sessions retrieved successfully' : 'No active sessions found'
+    });
+    
   } catch (error) {
     logger.error('Error fetching sessions:', error);
-    res.status(500).json({ error: 'Failed to fetch sessions' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch sessions' 
+    });
   }
 }
 

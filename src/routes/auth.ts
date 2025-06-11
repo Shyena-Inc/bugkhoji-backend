@@ -686,6 +686,16 @@ router.post("/logout", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-router.get("/sessions", rateLimiting, authenticate, getSessions);
+router.get("/sessions", rateLimiting, authenticate, async (req: Request, res: Response) => {
+  try {
+    await getSessions(req, res);
+  } catch (error) {
+    logger.error('Error in sessions route:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
 
 export default router;
