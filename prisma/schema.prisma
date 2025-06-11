@@ -116,12 +116,12 @@ model Session {
   id            String   @id @default(uuid())
   userId        String
   user          User     @relation(fields: [userId], references: [id])
-  ipAddress     String
+  ipAddress     String?
   userAgent     String
-  deviceType    String
-  deviceOS      String
-  deviceBrowser String
-  location      String
+  deviceType    String?
+  deviceOS      String?
+  deviceBrowser String?
+  location      String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   lastSeen      DateTime @updatedAt

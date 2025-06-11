@@ -37,7 +37,6 @@ declare global {
 // Strict JwtPayload interface with type guard
 interface JwtPayload {
   id: string;
-  email: string;
   role: UserRole;
   sessionId?: string;
   iat: number;
@@ -48,7 +47,6 @@ function isJwtPayload(decoded: any): decoded is JwtPayload {
   return (
     decoded &&
     typeof decoded.id === "string" &&
-    typeof decoded.email === "string" &&
     Object.values(UserRole).includes(decoded.role) &&
     typeof decoded.iat === "number" &&
     typeof decoded.exp === "number"
@@ -201,13 +199,13 @@ export async function   authenticate(
     }
 
     // Verify email matches using constant-time comparison
-    if (!secureCompare(user.email, decoded.email)) {
-      logger.warn(
-        `Authentication failed: Email mismatch for user ${decoded.id}`
-      );
-      res.status(401).json({ error: "Token validation failed" });
-      return;
-    }
+    // if (!secureCompare(user.email, decoded.email)) {
+    //   logger.warn(
+    //     `Authentication failed: Email mismatch for user ${decoded.id}`
+    //   );
+    //   res.status(401).json({ error: "Token validation failed" });
+    //   return;
+    // }
 
     // Update last login timestamp (fire and forget)
     prisma.user
@@ -396,14 +394,14 @@ export async function optionalAuth(
       select: { id: true, email: true, role: true, isActive: true },
     });
 
-    if (user && user.isActive && secureCompare(user.email, decoded.email)) {
-      req.user = {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        isActive: user.isActive,
-      };
-    }
+    // if (user && user.isActive && secureCompare(user.email, decoded.email)) {
+    //   req.user = {
+    //     id: user.id,
+    //     email: user.email,
+    //     role: user.role,
+    //     isActive: user.isActive,
+    //   };
+    // }
   } catch (error) {
     // Silently fail for optional auth but log for debugging
     logger.debug(
