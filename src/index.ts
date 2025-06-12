@@ -12,9 +12,10 @@ import { rateLimiting } from "./middleware/ratelimiter";
 import { logger } from "./utils/logger";
 import { seedAdmin } from "./utils/adminSeeder";
 import auditRoutes from "./routes/audit";
+import OtpRoutes from './routes/otp'
+import { connectDB, disconnectDB } from "./database/database";
 
 const app: Express = express();
-import { connectDB, disconnectDB } from "./database/database";
 const CORS_WHITELIST = [
   "http://localhost:4001",
   "https://bugkhoji.com",
@@ -44,6 +45,7 @@ app.use("/v1", authRoutes);
 app.use("/login/researcher", rateLimiting);
 app.use("/login/admin", rateLimiting);
 app.use("/api/audit", auditRoutes);
+app.use("/api", OtpRoutes);
 
 app.use((err: any, req: Request, res: Response, next: NextFunction): void => {
   logger.error(`${err.message} - ${req.method} ${req.originalUrl} - ${req.ip}`);

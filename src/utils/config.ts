@@ -28,6 +28,10 @@ export const config = {
 
   // Logging
   LOG_LEVEL: process.env.LOG_LEVEL || "info",
+  
+  // mail
+  MJ_APIKEY_PRIVATE: process.env.MJ_APIKEY_PRIVATE,
+  MJ_APIKEY_PUBLIC: process.env.MJ_APIKEY_PUBLIC,
 
   // Admin
   ADMIN_EMAIL: process.env.ADMIN_EMAIL,

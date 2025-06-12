@@ -139,3 +139,13 @@ model RefreshToken {
   createdAt DateTime @default(now())
   expiresAt DateTime
 }
+
+model Otp {
+  id        String   @id @default(uuid())
+  email     String
+  code      String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@map("otps")
+}
