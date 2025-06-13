@@ -4,7 +4,8 @@ import { prisma } from "../utils/prisma";
 import { logger } from "../utils/logger";
 import { config } from "../utils/config";
 import { RateLimiterMemory } from "rate-limiter-flexible";
-import { UserRole } from "../interfaces/user.interface";
+// import { UserRole } from "../interfaces/user.interface";
+import { UserRole } from "@prisma/client";
 
 // Singleton Prisma Client instance
 // const prisma = new PrismaClient();
@@ -49,7 +50,7 @@ function isJwtPayload(decoded: any): decoded is JwtPayload {
   return (
     decoded &&
     typeof decoded.id === "string" &&
-    Object.values(prisma.UserRole).includes(decoded.role) &&
+    Object.values(UserRole).includes(decoded.role) &&
     typeof decoded.iat === "number" &&
     typeof decoded.exp === "number"
   );
@@ -146,8 +147,8 @@ export async function authenticate(
       logger.info("Decoded JWT payload:", decoded);
       logger.info("Type of decoded.role:", typeof (decoded as any).role);
       logger.info("Value of decoded.role:", (decoded as any).role);
-      logger.info("UserRole values:", Object.values(prisma.UserRole));
-      logger.info("Role included in UserRole values:", Object.values(prisma.UserRole).includes((decoded as any).role));
+      logger.info("UserRole values:", Object.values(UserRole));
+      logger.info("Role included in UserRole values:", Object.values(UserRole).includes((decoded as any).role));
 
     } catch (jwtError) {
       if (jwtError instanceof jwt.TokenExpiredError) {
