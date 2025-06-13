@@ -698,4 +698,16 @@ router.get("/sessions", rateLimiting, authenticate, async (req: Request, res: Re
   }
 });
 
+router.post("/mail-opt", async(req: Request,res: Response)=>{
+try{
+  // await 
+  res.status(200).send("Hello")
+}catch(error){
+  res.status(500).json({
+    success: false,
+    error:"INternal Server Error"
+  })
+}
+})
+
 export default router;
