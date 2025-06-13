@@ -1,12 +1,15 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { PrismaClient, UserRole } from "@prisma/client";
+import { prisma } from "../utils/prisma";
 import { logger } from "../utils/logger";
 import { config } from "../utils/config";
 import { RateLimiterMemory } from "rate-limiter-flexible";
+// import { UserRole } from "../interfaces/user.interface";
+import { UserRole } from "@prisma/client";
 
 // Singleton Prisma Client instance
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
+
 
 // Enhanced rate limiting with RateLimiterFlexible
 const rateLimiter = new RateLimiterMemory({
@@ -88,7 +91,7 @@ async function checkRateLimit(ip: string): Promise<boolean> {
   }
 }
 
-export async function   authenticate(
+export async function authenticate(
   req: Request,
   res: Response,
   next: NextFunction
@@ -163,7 +166,6 @@ export async function   authenticate(
       logger.error("Unexpected JWT error:", jwtError);
       res.status(500).json({ error: "Internal server error" });
       return;
-      return;
     }
 
     // Validate token payload with type guard
@@ -213,7 +215,7 @@ export async function   authenticate(
         where: { id: user.id },
         data: { lastLogin: new Date() },
       })
-      .catch((error) => {
+      .catch((error: any) => {
         logger.error(`Failed to update lastLogin for user ${user.id}:`, error);
       });
 
@@ -250,8 +252,7 @@ export function authorize(allowedRoles: UserRole[]) {
 
       if (!allowedRoles.includes(req.user.role)) {
         logger.warn(
-          `Authorization failed: User ${req.user.id} with role ${
-            req.user.role
+          `Authorization failed: User ${req.user.id} with role ${req.user.role
           } attempted to access endpoint requiring roles: ${allowedRoles.join(
             ", "
           )}`
@@ -273,13 +274,13 @@ export function authorize(allowedRoles: UserRole[]) {
 }
 
 // Role-specific middleware
-export const requireAdmin = authorize([UserRole.ADMIN]);
-export const requireResearcher = authorize([UserRole.RESEARCHER]);
-export const requireOrganization = authorize([UserRole.ORGANIZATION]);
+export const requireAdmin = authorize(["ADMIN"]);
+export const requireResearcher = authorize(["RESEARCHER"]);
+export const requireOrganization = authorize(["ORGANIZATION"]);
 export const requireAny = authorize([
-  UserRole.RESEARCHER,
-  UserRole.ADMIN,
-  UserRole.ORGANIZATION,
+  "RESEARCHER",
+  "ADMIN",
+  "ORGANIZATION"
 ]);
 
 export function requireActiveOrganization(
@@ -294,7 +295,7 @@ export function requireActiveOrganization(
       return;
     }
 
-    if (req.user.role !== UserRole.ORGANIZATION) {
+    if (req.user.role !== "ORGANIZATION") {
       logger.warn(
         `Authorization failed: User ${req.user.id} with role ${req.user.role} attempted to access organization endpoint`
       );
@@ -339,8 +340,8 @@ export const requireOrganizationOrAdmin = (
     }
 
     if (
-      req.user.role !== UserRole.ORGANIZATION &&
-      req.user.role !== UserRole.ADMIN
+      req.user.role !== "ORGANIZATION" &&
+      req.user.role !== "ADMIN"
     ) {
       logger.warn(
         `Authorization failed: User ${req.user.id} with role ${req.user.role} attempted to access protected endpoint`

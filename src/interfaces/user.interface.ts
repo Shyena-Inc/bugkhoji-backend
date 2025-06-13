@@ -1,4 +1,4 @@
-export type UserRole = "researcher" | "admin" | "organization";
+export type UserRole = "RESEARCHER" | "ADMIN" | "ORGANIZATION";
 
 export interface IUserInput {
   username: string;
