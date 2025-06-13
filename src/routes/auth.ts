@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt, { type Secret, type SignOptions } from "jsonwebtoken";
 import { z } from "zod";
-import { PrismaClient, UserRole } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import rateLimit from "express-rate-limit";
 import { logger } from "../utils/logger";
 import { validate } from "../middleware/validate";
@@ -170,8 +170,8 @@ const handleLoginSuccess = async (
   }
 
   // Generate tokens
-  const accessToken = generateToken(user.id, user.role)
-  const { token: refreshToken } = await generateRefreshToken(user.id, "")
+  const accessToken = generateToken(user.id, user.role);
+  const { token: refreshToken } = await generateRefreshToken(user.id, "");
 
   // Set refresh token cookie
   setRefreshTokenCookie(res, refreshToken);
@@ -301,7 +301,7 @@ router.post(
       const passwordHash = await bcrypt.hash(password, 12);
 
       // Create new organization user with transaction
-      const user = await prisma.$transaction(async (tx) => {
+      const user = await prisma.$transaction(async (tx: any) => {
         return await tx.user.create({
           data: {
             email,
@@ -309,7 +309,7 @@ router.post(
             username,
             firstName: organizationName,
             lastName: "",
-            role: UserRole.ORGANIZATION,
+            role: prisma.UserRole.ORGANIZATION,
             isActive: false, // Organizations need admin approval
             organizationProfile: {
               create: {
@@ -596,7 +596,7 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
     }
 
     // Decode token to get user ID
-    const decoded = jwt.decode(refreshToken) as { id: string } | null;
+    const decoded = jwt.decode(refreshToken) as { id: string; } | null;
 
     if (!decoded || !decoded.id) {
       res.status(401).json({ error: "Invalid refresh token" });
@@ -604,9 +604,9 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
     }
 
     // Verify refresh token
-    const { verifyRefreshToken } = await import("../utils/token")
+    const { verifyRefreshToken } = await import("../utils/token");
     const sessionId = (decoded as any)?.sessionId || ""; // fallback to empty string if not present
-    const isValid = await verifyRefreshToken(refreshToken, decoded.id, sessionId)
+    const isValid = await verifyRefreshToken(refreshToken, decoded.id, sessionId);
 
     if (!isValid) {
       logger.warn(`Invalid refresh token used for user ID: ${decoded.id}`);
@@ -634,9 +634,9 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
     }
 
     // Generate new tokens
-    const accessToken = generateToken(user.id, user.role)
+    const accessToken = generateToken(user.id, user.role);
     // Use the previously extracted sessionId
-    const { token: newRefreshToken } = await generateRefreshToken(user.id, sessionId)
+    const { token: newRefreshToken } = await generateRefreshToken(user.id, sessionId);
 
     // Set new refresh token cookie
     setRefreshTokenCookie(res, newRefreshToken);
@@ -672,9 +672,9 @@ router.post("/logout", async (req: Request, res: Response): Promise<void> => {
 
     if (userId) {
       // Invalidate refresh token
-      const { invalidateRefreshToken } = await import("../utils/token")
+      const { invalidateRefreshToken } = await import("../utils/token");
       // Pass empty string if sessionId is not available
-      await invalidateRefreshToken(userId, '')
+      await invalidateRefreshToken(userId, '');
     }
 
     // Clear refresh token cookie
@@ -691,7 +691,7 @@ router.get("/sessions", rateLimiting, authenticate, async (req: Request, res: Re
     await getSessions(req, res);
   } catch (error) {
     logger.error('Error in sessions route:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: 'Internal server error'
     });

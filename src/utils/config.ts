@@ -1,11 +1,11 @@
-import dotenv from "dotenv"
+import dotenv from "dotenv";
 
 // Load environment variables
-dotenv.config()
+dotenv.config();
 
 export const config = {
   // Database
-  DATABASE_URL: process.env.DATABASE_URL,
+  DATABASE_URL: `postgresql://${process.env.DATABASE_USER}:${process.env.DATABASE_PASSWORD}@${process.env.DATABASE_HOST}:5432/${process.env.DATABASE_NAME}?connect_timeout=10&sslmode=require`,
 
   // JWT
   JWT_SECRET: process.env.JWT_SECRET,
@@ -38,10 +38,10 @@ export const config = {
 } as const;
 
 // Validate required environment variables
-const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET"]
+const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET"];
 
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
-    throw new Error(`Required environment variable ${envVar} is not set`)
+    throw new Error(`Required environment variable ${envVar} is not set`);
   }
 }

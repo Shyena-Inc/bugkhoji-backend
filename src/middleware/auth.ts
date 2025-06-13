@@ -1,12 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { PrismaClient, UserRole } from "@prisma/client";
+import { prisma } from "src/utils/prisma";
 import { logger } from "../utils/logger";
 import { config } from "../utils/config";
 import { RateLimiterMemory } from "rate-limiter-flexible";
+import { UserRole } from "src/interfaces/user.interface";
 
 // Singleton Prisma Client instance
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 
 // Enhanced rate limiting with RateLimiterFlexible
 const rateLimiter = new RateLimiterMemory({
@@ -47,7 +48,7 @@ function isJwtPayload(decoded: any): decoded is JwtPayload {
   return (
     decoded &&
     typeof decoded.id === "string" &&
-    Object.values(UserRole).includes(decoded.role) &&
+    Object.values(prisma.UserRole).includes(decoded.role) &&
     typeof decoded.iat === "number" &&
     typeof decoded.exp === "number"
   );
@@ -88,7 +89,7 @@ async function checkRateLimit(ip: string): Promise<boolean> {
   }
 }
 
-export async function   authenticate(
+export async function authenticate(
   req: Request,
   res: Response,
   next: NextFunction
@@ -144,8 +145,8 @@ export async function   authenticate(
       logger.info("Decoded JWT payload:", decoded);
       logger.info("Type of decoded.role:", typeof (decoded as any).role);
       logger.info("Value of decoded.role:", (decoded as any).role);
-      logger.info("UserRole values:", Object.values(UserRole));
-      logger.info("Role included in UserRole values:", Object.values(UserRole).includes((decoded as any).role));
+      logger.info("UserRole values:", Object.values(prisma.UserRole));
+      logger.info("Role included in UserRole values:", Object.values(prisma.UserRole).includes((decoded as any).role));
 
     } catch (jwtError) {
       if (jwtError instanceof jwt.TokenExpiredError) {
@@ -162,7 +163,6 @@ export async function   authenticate(
 
       logger.error("Unexpected JWT error:", jwtError);
       res.status(500).json({ error: "Internal server error" });
-      return;
       return;
     }
 
@@ -250,8 +250,7 @@ export function authorize(allowedRoles: UserRole[]) {
 
       if (!allowedRoles.includes(req.user.role)) {
         logger.warn(
-          `Authorization failed: User ${req.user.id} with role ${
-            req.user.role
+          `Authorization failed: User ${req.user.id} with role ${req.user.role
           } attempted to access endpoint requiring roles: ${allowedRoles.join(
             ", "
           )}`
