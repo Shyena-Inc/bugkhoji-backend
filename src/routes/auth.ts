@@ -309,7 +309,7 @@ router.post(
             username,
             firstName: organizationName,
             lastName: "",
-            role: prisma.UserRole.ORGANIZATION,
+            role: "ORGANIZATION",
             isActive: false, // Organizations need admin approval
             organizationProfile: {
               create: {
