@@ -553,7 +553,8 @@ router.post(
         );
         res.status(401).json({
           message:
-            "Account pending activation. Please wait for admin approval.",
+            `Account pending activation. Please wait for admin approval.  `
+            // `Account pending activation. Please wait for admin approval. for ${user.id} ` dor now using geeting userid from here
         });
         return;
       }
