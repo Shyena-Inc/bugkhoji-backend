@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt, { type Secret, type SignOptions } from "jsonwebtoken";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, UserRole } from "@prisma/client";
 import rateLimit from "express-rate-limit";
 import { logger } from "../utils/logger";
 import { validate } from "../middleware/validate";
@@ -242,7 +242,7 @@ router.post(
           username,
           firstName,
           lastName,
-          role: "RESEARCHER",
+          role: UserRole.RESEARCHER,
         },
       });
 
@@ -311,7 +311,7 @@ router.post(
             lastName: "",
             role: "ORGANIZATION",
             isActive: false, // Organizations need admin approval
-            organizationProfile: {
+            organization: {
               create: {
                 name: organizationName,
                 website: website || null,
@@ -320,7 +320,7 @@ router.post(
             },
           },
           include: {
-            organizationProfile: true,
+            organization: true,
           },
         });
       });
@@ -411,7 +411,14 @@ router.post(
       }
 
       // Verify password
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!user.passwordHash) {
+        logger.warn(
+          `Failed login attempt for researcher: ${user.email} - No password hash found`
+        );
+        res.status(401).json({ message: "Invalid email or password" });
+        return;
+      }
+      const passwordMatch = await bcrypt.compare(password, user.passwordHash ?? "");
       if (!passwordMatch) {
         logger.warn(
           `Failed login attempt for researcher: ${user.email} - Invalid password`
@@ -421,7 +428,16 @@ router.post(
       }
 
       // Handle successful login
-      await handleLoginSuccess(user, res);
+      await handleLoginSuccess(
+        {
+          ...user,
+          passwordHash: user.passwordHash ?? "",
+          username: user.username ?? "",
+          firstName: user.firstName ?? "",
+          lastName: user.lastName ?? "",
+        },
+        res
+      );
       logger.info(`Successful researcher login for user: ${user.id}`);
     } catch (err) {
       logger.error("Researcher login error:", err);
@@ -477,7 +493,7 @@ router.post(
       }
 
       // Verify password
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+      const passwordMatch = await bcrypt.compare(password, user.passwordHash ?? "");
       if (!passwordMatch) {
         logger.warn(
           `Failed login attempt for admin: ${user.email} - Invalid password`
@@ -492,7 +508,16 @@ router.post(
       // }
 
       // Handle successful login
-      await handleLoginSuccess(user, res);
+      await handleLoginSuccess(
+        {
+          ...user,
+          passwordHash: user.passwordHash ?? "",
+          username: user.username ?? "",
+          firstName: user.firstName ?? "",
+          lastName: user.lastName ?? "",
+        },
+        res
+      );
       logger.info(`Successful admin login for user: ${user.id}`);
     } catch (err) {
       logger.error("Admin login error:", err);
@@ -560,6 +585,13 @@ router.post(
       }
 
       // Verify password
+      if (!user.passwordHash) {
+        logger.warn(
+          `Failed login attempt for organization: ${user.email} - No password hash found`
+        );
+        res.status(401).json({ message: "Invalid email or password" });
+        return;
+      }
       const passwordMatch = await bcrypt.compare(password, user.passwordHash);
       if (!passwordMatch) {
         logger.warn(
@@ -569,8 +601,25 @@ router.post(
         return;
       }
 
+      // Ensure passwordHash is not null before proceeding
+      if (!user.passwordHash) {
+        logger.warn(
+          `Failed login attempt for organization: ${user.email} - No password hash found`
+        );
+        res.status(401).json({ message: "Invalid email or password" });
+        return;
+      }
       // Handle successful login
-      await handleLoginSuccess(user, res);
+      await handleLoginSuccess(
+        {
+          ...user,
+          passwordHash: user.passwordHash, // now guaranteed to be string
+          username: user.username ?? "",
+          firstName: user.firstName ?? "",
+          lastName: user.lastName ?? "",
+        },
+        res
+      );
       logger.info(`Successful organization login for: ${user.id}`);
     } catch (err) {
       logger.error("Organization login error:", err);

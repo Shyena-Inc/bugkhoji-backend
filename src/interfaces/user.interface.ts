@@ -9,11 +9,13 @@ export interface IUserInput {
 }
 
 export interface IUserOutput {
+  sessionId: string | undefined;
   id: string;
   username: string;
   fullName: string;
   email: string;
   role: UserRole;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

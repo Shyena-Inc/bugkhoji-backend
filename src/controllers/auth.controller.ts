@@ -41,6 +41,12 @@ export async function login(req: Request, res: Response) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
+    // Check passwordHash is not null
+    if (!user.passwordHash) {
+      logger.warn(`User ${user.email} does not have a password hash set`);
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
     // Check password
     const passwordMatch = await bcrypt.compare(
       validatedData.password,

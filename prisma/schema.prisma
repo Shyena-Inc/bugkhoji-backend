@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,41 +11,120 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  firstName    String
-  lastName     String
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(RESEARCHER)
+  id       String @id @default(cuid())
+  email    String @unique
+  name     String?
+  role     UserRole   @default(RESEARCHER)
+  
+  // Enhanced user fields from original schema
+  username     String?  @unique
+  firstName    String?
+  lastName     String?
+  passwordHash String?
   isActive     Boolean  @default(true)
-
+  
   // Authentication & Session Management
   lastLogin             DateTime?
   refreshTokenHash      String?
   refreshTokenExpiresAt DateTime?
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Audit Relations
+  
+  // Organization relationship
+  organization Organization?
+  
+  // New relations from original schema
   auditLogs   AuditLog[] @relation("UserAuditLogs")
   performedBy AuditLog[] @relation("PerformedByUser")
-
-  // Add this relation
-  organizationProfile OrganizationProfile?
-
   sessions      Session[]
   refreshTokens RefreshToken[]
-
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
   @@map("users")
 }
+
+model Organization {
+  id          String @id @default(cuid())
+  name        String
+  description String?
+  website     String?
+  
+  // Enhanced organization fields from original schema
+  address     String?
+  phone       String?
+  logo        String? // URL to logo image
+  industry    String?
+  size        Int? // Number of employees
+  verified    Boolean @default(false)
+  
+  // User relationship (one-to-one)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Programs relationship
+  programs Program[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("organizations")
+}
+
+model Program {
+  id                   String   @id @default(cuid())
+  title                String
+  description          String
+  websiteName          String
+  websiteUrls          String[] // Array of URLs
+  scope                String
+  outOfScope           String?
+  rewards              Json     // JSON object for reward structure
+  submissionGuidelines String?
+  disclosurePolicy     String?
+  startDate            DateTime?
+  endDate              DateTime?
+  status               ProgramStatus @default(DRAFT)
+  
+  // Organization relationship
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Submissions relationship
+  submissions Submission[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("programs")
+}
+
+model Submission {
+  id          String @id @default(cuid())
+  title       String
+  description String
+  severity    Severity
+  status      SubmissionStatus @default(PENDING)
+  
+  // Program relationship
+  programId String
+  program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  
+  // Researcher info (can be expanded to User model later)
+  researcherEmail String
+  researcherName  String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("submissions")
+}
+
+// New models from original schema for enhanced functionality
 
 model AuditLog {
   id         String      @id @default(cuid())
   action     AuditAction
-  entityType String // e.g., "User", "Program", etc.
+  entityType String // e.g., "User", "Program", "Organization", etc.
   entityId   String // ID of the affected record
   oldData    Json? // Previous state (if applicable)
   newData    Json? // New state (if applicable)
@@ -67,10 +143,75 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model Session {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress     String?
+  userAgent     String
+  deviceType    String?
+  deviceOS      String?
+  deviceBrowser String?
+  location      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  lastSeen      DateTime @updatedAt
+  expiresAt     DateTime
+  refreshTokens RefreshToken[]
+  
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  
+  @@map("refresh_tokens")
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  email     String
+  code      String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@map("otps")
+}
+
+// Enums
 enum UserRole {
-  ADMIN
   RESEARCHER
   ORGANIZATION
+  ADMIN
+}
+
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SubmissionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  RESOLVED
+  DUPLICATE
 }
 
 enum AuditAction {
@@ -87,65 +228,4 @@ enum AuditAction {
   ACCOUNT_ENABLED
   TOKEN_REFRESH
   REGISTER
-}
-
-model OrganizationProfile {
-  id          String  @id @default(cuid())
-  userId      String  @unique
-  name        String
-  website     String?
-  description String?
-  address     String?
-  phone       String?
-  logo        String? // URL to logo image
-  industry    String?
-  size        Int? // Number of employees
-  verified    Boolean @default(false)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("organization_profiles")
-}
-
-model Session {
-  id            String   @id @default(uuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  ipAddress     String?
-  userAgent     String
-  deviceType    String?
-  deviceOS      String?
-  deviceBrowser String?
-  location      String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  lastSeen      DateTime @updatedAt
-  expiresAt     DateTime
-  refreshTokens RefreshToken[]
-}
-
-model RefreshToken {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  sessionId String
-  session   Session  @relation(fields: [sessionId], references: [id])
-  createdAt DateTime @default(now())
-  expiresAt DateTime
-}
-
-model Otp {
-  id        String   @id @default(uuid())
-  email     String
-  code      String
-  createdAt DateTime @default(now())
-  expiresAt DateTime
-
-  @@map("otps")
 }

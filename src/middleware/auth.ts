@@ -4,7 +4,6 @@ import { prisma } from "../utils/prisma";
 import { logger } from "../utils/logger";
 import { config } from "../utils/config";
 import { RateLimiterMemory } from "rate-limiter-flexible";
-// import { UserRole } from "../interfaces/user.interface";
 import { UserRole } from "@prisma/client";
 
 // Singleton Prisma Client instance
@@ -274,13 +273,13 @@ export function authorize(allowedRoles: UserRole[]) {
 }
 
 // Role-specific middleware
-export const requireAdmin = authorize(["ADMIN"]);
-export const requireResearcher = authorize(["RESEARCHER"]);
-export const requireOrganization = authorize(["ORGANIZATION"]);
+export const requireAdmin = authorize([UserRole.ADMIN]);
+export const requireResearcher = authorize([UserRole.RESEARCHER]);
+export const requireOrganization = authorize([UserRole.ORGANIZATION]);
 export const requireAny = authorize([
-  "RESEARCHER",
-  "ADMIN",
-  "ORGANIZATION"
+  UserRole.RESEARCHER,
+  UserRole.ADMIN,
+  UserRole.ORGANIZATION
 ]);
 
 export function requireActiveOrganization(
@@ -288,43 +287,15 @@ export function requireActiveOrganization(
   res: Response,
   next: NextFunction
 ): void {
-  try {
-    if (!req.user) {
-      logger.warn("Organization authorization failed: No user in request");
-      res.status(401).json({ error: "Authentication required" });
-      return;
-    }
-
-    if (req.user.role !== "ORGANIZATION") {
-      logger.warn(
-        `Authorization failed: User ${req.user.id} with role ${req.user.role} attempted to access organization endpoint`
-      );
-      res.status(403).json({
-        error: "Organization access required",
-        current: req.user.role,
-      });
-      return;
-    }
-
-    if (!req.user.isActive) {
-      logger.warn(
-        `Organization authorization failed: Organization ${req.user.id} is inactive`
-      );
-      res.status(403).json({
-        error:
-          "Organization account is pending activation or has been deactivated",
-      });
-      return;
-    }
-
-    next();
-  } catch (error) {
-    logger.error(
-      "Organization authorization error:",
-      error instanceof Error ? error.message : "Unknown error"
-    );
-    res.status(500).json({ error: "Internal server error" });
+  if (!req.user) {
+    res.status(401).json({ message: "Authentication required" });
+    return;
   }
+  if (req.user.role !== UserRole.ORGANIZATION) {
+    res.status(403).json({ message: "Active organization required" });
+    return;
+  }
+  next();
 }
 
 export const requireOrganizationOrAdmin = (
@@ -332,38 +303,18 @@ export const requireOrganizationOrAdmin = (
   res: Response,
   next: NextFunction
 ): void => {
-  try {
-    if (!req.user) {
-      logger.warn("Authorization failed: No user in request");
-      res.status(401).json({ error: "Authentication required" });
-      return;
-    }
-
-    if (
-      req.user.role !== "ORGANIZATION" &&
-      req.user.role !== "ADMIN"
-    ) {
-      logger.warn(
-        `Authorization failed: User ${req.user.id} with role ${req.user.role} attempted to access protected endpoint`
-      );
-      res.status(403).json({ error: "Insufficient privileges" });
-      return;
-    }
-
-    if (!req.user.isActive) {
-      logger.warn(`Authorization failed: User ${req.user.id} is inactive`);
-      res.status(403).json({ error: "Account is inactive" });
-      return;
-    }
-
-    next();
-  } catch (error) {
-    logger.error(
-      "Authorization error:",
-      error instanceof Error ? error.message : "Unknown error"
-    );
-    res.status(500).json({ error: "Internal server error" });
+  if (!req.user) {
+    res.status(401).json({ message: "Authentication required" });
+    return;
   }
+  if (
+    req.user.role !== UserRole.ORGANIZATION &&
+    req.user.role !== UserRole.ADMIN
+  ) {
+    res.status(403).json({ message: "Organization or admin access required" });
+    return;
+  }
+  next();
 };
 
 export async function optionalAuth(
