@@ -36,6 +36,8 @@ model User {
   performedBy AuditLog[] @relation("PerformedByUser")
   sessions      Session[]
   refreshTokens RefreshToken[]
+
+  reports Report[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -83,6 +85,7 @@ model Program {
   disclosurePolicy     String?
   startDate            DateTime?
   endDate              DateTime?
+  reports              Report[]
   status               ProgramStatus @default(DRAFT)
   
   // Organization relationship
@@ -104,6 +107,7 @@ model Submission {
   description String
   severity    Severity
   status      SubmissionStatus @default(PENDING)
+  reports     Report[]
   
   // Program relationship
   programId String
@@ -228,4 +232,66 @@ enum AuditAction {
   ACCOUNT_ENABLED
   TOKEN_REFRESH
   REGISTER
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  content     String
+  status      ReportStatus @default(DRAFT)
+  type        ReportType   @default(GENERAL)
+  
+  // Link to existing User model
+  authorId    String
+  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // Optional: Link to programs if reports are program-specific
+  programId   String?
+  program     Program?     @relation(fields: [programId], references: [id], onDelete: SetNull)
+  
+  // Optional: Link to submissions if reports are submission-related
+  submissionId String?
+  submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  
+  tags        String[]     // Array of tags for categorization
+  priority    Priority     @default(MEDIUM)
+  isPublic    Boolean      @default(false)
+  
+  attachments Json?        // Store file URLs/paths as JSON
+  
+  // Timestamps
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  publishedAt DateTime?
+  
+  @@index([authorId])
+  @@index([programId])
+  @@index([submissionId])
+  @@index([status])
+  @@index([type])
+  @@map("reports")
+}
+
+enum ReportStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  UNDER_REVIEW
+}
+
+enum ReportType {
+  GENERAL
+  SECURITY_ANALYSIS
+  PROGRAM_REVIEW
+  SUBMISSION_REPORT
+  AUDIT_REPORT
+  COMPLIANCE_REPORT
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }
