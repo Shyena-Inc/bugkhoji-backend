@@ -15,6 +15,7 @@ import auditRoutes from "./routes/audit";
 import OtpRoutes from './routes/otp'
 import AdminRoutes from './routes/admin'
 import OrgRoutes from './routes/organization'
+import ReportsRoute from './routes/reports'
 import { connectDB, disconnectDB } from "./database/database";
 
 const app: Express = express();
@@ -47,8 +48,9 @@ app.use("/v1", authRoutes);
 app.use("/login/researcher", rateLimiting);
 app.use("/login/admin", rateLimiting);
 app.use("/api/audit", auditRoutes);
-app.use("/api/v1/organization",OrgRoutes);
 app.use("/api/v1/admin/", AdminRoutes);
+app.use("/api/v1/organization",OrgRoutes);
+app.use("/api/v1/reports",ReportsRoute);
 app.use("/api", OtpRoutes);
 
 app.use((err: any, req: Request, res: Response, next: NextFunction): void => {

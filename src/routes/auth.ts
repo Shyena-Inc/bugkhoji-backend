@@ -1,7 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt, { type Secret, type SignOptions } from "jsonwebtoken";
-import { z } from "zod";
 import { PrismaClient, UserRole } from "@prisma/client";
 import rateLimit from "express-rate-limit";
 import { logger } from "../utils/logger";
@@ -11,6 +10,15 @@ import { generateRefreshToken } from "../utils/token";
 import { getSessions } from "../controllers/session.controller";
 import { authenticate } from "../middleware/auth";
 import { rateLimiting } from "../middleware/ratelimiter";
+
+import {
+  loginSchema,
+  registerSchema,
+  organizationRegisterSchema,
+  type LoginInput,
+  type RegisterInput,
+  type OrganizationRegisterInput
+} from "../schemas/auth.schemas";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -31,85 +39,6 @@ const authLimiter = rateLimit({
     const email = req.body?.email || "unknown";
     return `${req.ip}-${email}`;
   },
-});
-
-// ============================================================================
-// VALIDATION SCHEMAS
-// ============================================================================
-
-const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(128, "Password too long"),
-});
-
-const registerSchema = z.object({
-  username: z
-    .string()
-    .min(3, "Username must be at least 3 characters")
-    .max(30, "Username too long")
-    .regex(
-      /^[a-zA-Z0-9_]+$/,
-      "Username can only contain letters, numbers, and underscores"
-    ),
-  firstName: z
-    .string()
-    .min(1, "First name is required")
-    .max(100, "First name too long"),
-  lastName: z
-    .string()
-    .min(1, "Last name is required")
-    .max(100, "Last name too long"),
-  email: z.string().email("Invalid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(128, "Password too long")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(
-      /[^A-Za-z0-9]/,
-      "Password must contain at least one special character"
-    ),
-});
-
-const organizationRegisterSchema = z.object({
-  organizationName: z
-    .string()
-    .min(2, "Organization name must be at least 2 characters")
-    .max(100, "Organization name too long")
-    .trim(), // Add trim to remove whitespace
-  email: z
-    .string()
-    .email("Invalid email address")
-    .toLowerCase() // Normalize email case
-    .trim(),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(128, "Password too long")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(
-      /[^A-Za-z0-9]/,
-      "Password must contain at least one special character"
-    ), // Add special char requirement
-  website: z
-    .string()
-    .url("Invalid website URL")
-    .trim()
-    .optional()
-    .or(z.literal("")), // Allow empty string
-  description: z
-    .string()
-    .max(500, "Description too long")
-    .trim()
-    .optional()
-    .or(z.literal("")), // Allow empty string
 });
 
 // ============================================================================
@@ -201,7 +130,7 @@ router.post(
   "/register/researcher",
   authLimiter,
   validate(registerSchema),
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: Request<{}, {}, RegisterInput>, res: Response): Promise<void> => {
     try {
       const { email, password, username, firstName, lastName } = req.body;
 
@@ -262,7 +191,7 @@ router.post(
   "/register/organization",
   authLimiter,
   validate(organizationRegisterSchema),
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: Request<{}, {}, OrganizationRegisterInput>, res: Response): Promise<void> => {
     try {
       const { email, password, organizationName, website, description } =
         req.body;
@@ -371,7 +300,7 @@ router.post(
   "/login/researcher",
   authLimiter,
   validate(loginSchema),
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: Request<{}, {}, LoginInput>, res: Response): Promise<void> => {
     try {
       const { email, password } = req.body;
 
@@ -453,7 +382,7 @@ router.post(
   "/login/admin",
   authLimiter,
   validate(loginSchema),
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: Request<{}, {}, LoginInput>, res: Response): Promise<void> => {
     try {
       const { email, password } = req.body;
 
@@ -533,7 +462,7 @@ router.post(
   "/login/organization",
   authLimiter,
   validate(loginSchema),
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: Request<{}, {}, LoginInput>, res: Response): Promise<void> => {
     try {
       const { email, password } = req.body;
 
@@ -579,7 +508,6 @@ router.post(
         res.status(401).json({
           message:
             `Account pending activation. Please wait for admin approval.  `
-            // `Account pending activation. Please wait for admin approval. for ${user.id} ` dor now using geeting userid from here
         });
         return;
       }
@@ -601,14 +529,6 @@ router.post(
         return;
       }
 
-      // Ensure passwordHash is not null before proceeding
-      if (!user.passwordHash) {
-        logger.warn(
-          `Failed login attempt for organization: ${user.email} - No password hash found`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
       // Handle successful login
       await handleLoginSuccess(
         {

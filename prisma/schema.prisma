@@ -259,6 +259,7 @@ model Report {
   isPublic    Boolean      @default(false)
   
   attachments Json?        // Store file URLs/paths as JSON
+  metadata  Json? 
   
   // Timestamps
   createdAt   DateTime     @default(now())

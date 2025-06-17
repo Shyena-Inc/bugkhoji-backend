@@ -1,222 +1,254 @@
 import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
-import reportsDb from '../utils/prisma-reports';
-import { AuthenticatedRequest } from '../middleware/reports';
-import { 
-  CreateReportDTO, 
-  UpdateReportDTO, 
+import { logger } from '../utils/logger';
+import {
+  CreateReportDTO,
+  UpdateReportDTO,
   ReportQueryParams,
   ReportWithAuthor,
-  ReportWithRelations,
-  PaginationResponse
-} from '../types/report.types';
-import { ReportStatus, ReportType, Priority } from '@prisma/client../generated/reports-client';
+  PaginationResponse,
+  ReportStatus,
+  ReportType,
+  Priority,
+  User
+} from '../types/report';
 
 class ReportController {
-  // GET /reports
-  async getAllReports(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
-      const {
-        page = '1',
-        limit = '10',
-        status,
-        type,
-        priority,
-        search,
-        tags,
-        isPublic,
-        programId,
-        submissionId
-      }: ReportQueryParams = req.query;
-
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-      const take = parseInt(limit);
-
-      // Build where clause
-      const where: any = {
-        OR: [
-          { authorId: req.user.id },
-          { isPublic: true },
-          {
-            collaborators: {
-              some: { userId: req.user.id }
-            }
-          }
-        ]
-      };
-
-      if (status) where.status = status;
-      if (type) where.type = type;
-      if (priority) where.priority = priority;
-      if (programId) where.programId = programId;
-      if (submissionId) where.submissionId = submissionId;
-      if (isPublic !== undefined) where.isPublic = isPublic === 'true';
-
-      if (search) {
-        where.AND = {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        };
-      }
-
-      if (tags) {
-        const tagArray = tags.split(',').map((tag: string) => tag.trim());
-        where.tags = {
-          hasSome: tagArray
-        };
-      }
-
-      const [reports, total] = await Promise.all([
-        reportsDb.report.findMany({
-          where,
-          include: {
-            collaborators: true,
-            comments: {
-              take: 5,
-              orderBy: { createdAt: 'desc' }
-            },
-            childReports: {
-              select: { id: true, title: true, status: true }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take
-        }),
-        reportsDb.report.count({ where })
-      ]);
-
-      // Enrich with user data from main database
-      const enrichedReports: ReportWithAuthor[] = await Promise.all(
-        reports.map(async (report: { authorId: any; }) => {
-          const author = await prisma.user.findUnique({
-            where: { id: report.authorId },
-            select: { id: true, name: true, email: true, role: true }
-          });
-
-          return {
-            ...report,
-            author: author ?? undefined
-          };
-        })
-      );
-
-      const response: PaginationResponse<ReportWithAuthor> = {
-        data: enrichedReports,
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(total / take),
-          totalItems: total,
-          itemsPerPage: take,
-          hasNext: skip + take < total,
-          hasPrev: parseInt(page) > 1
-        }
-      };
-
-      res.json(response);
-    } catch (error) {
-      console.error('Error fetching reports:', error);
-      res.status(500).json({ error: 'Failed to fetch reports' });
-    }
+  // Error handler
+  private handleError(res: Response, error: unknown, context: string) {
+    logger.error(`Error in ${context}:`, error);
+    res.status(500).json({ error: `Failed to ${context}` });
   }
 
-  // POST /reports
-  async createReport(req: AuthenticatedRequest, res: Response): Promise<void> {
+  // Authorization check
+  private checkAuthorization(req: Request, res: Response): boolean {
+    if (!req.user) {
+      logger.warn('Unauthorized access attempt');
+      res.status(401).json({ error: 'Unauthorized' });
+      return false;
+    }
+    return true;
+  }
+
+  // Pagination setup
+  private getPaginationParams(query: any) {
+    const page = parseInt(query.page || '1');
+    const limit = parseInt(query.limit || '10');
+    const skip = (page - 1) * limit;
+    return { page, limit, skip };
+  }
+
+  // Report includes for queries
+  private getReportIncludes() {
+    return {
+      author: { select: { id: true, name: true, email: true, role: true } },
+      program: { select: { id: true, title: true } },
+      submission: { select: { id: true, title: true } }
+    };
+  }
+
+  // Safe enum conversion
+  private toReportStatus(status?: string): ReportStatus {
+    if (status && Object.values(ReportStatus).includes(status as ReportStatus)) {
+      return status as ReportStatus;
+    }
+    return ReportStatus.DRAFT;
+  }
+
+  private toReportType(type?: string): ReportType {
+    if (type && Object.values(ReportType).includes(type as ReportType)) {
+      return type as ReportType;
+    }
+    return ReportType.GENERAL;
+  }
+
+  private toPriority(priority?: string): Priority {
+    if (priority && Object.values(Priority).includes(priority as Priority)) {
+      return priority as Priority;
+    }
+    return Priority.MEDIUM;
+  }
+
+  // Format report response
+  private formatReport(report: any): ReportWithAuthor {
+    return {
+      id: report.id,
+      title: report.title,
+      description: report.description,
+      content: report.content,
+      status: report.status,
+      type: report.type,
+      priority: report.priority,
+      authorId: report.authorId,
+      authorEmail: report.author?.email || '',
+      authorName: report.author?.name || '',
+      programId: report.programId,
+      submissionId: report.submissionId,
+      tags: report.tags || [],
+      isPublic: report.isPublic,
+      metadata: report.metadata || {},
+      createdAt: report.createdAt,
+      updatedAt: report.updatedAt,
+      author: report.author,
+      collaborators: [],
+      comments: [],
+      childReports: []
+    };
+  }
+
+  // Create pagination response
+  private createPaginationResponse<T>(
+    data: T[],
+    total: number,
+    page: number,
+    limit: number
+  ): PaginationResponse<T> {
+    return {
+      data,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: limit,
+        hasNext: (page * limit) < total,
+        hasPrev: page > 1
+      }
+    };
+  }
+
+  // CREATE
+  async createReport(req: Request, res: Response): Promise<void> {
     try {
-      const {
-        title,
-        description,
-        content,
-        status = ReportStatus.DRAFT,
-        type = ReportType.GENERAL,
-        priority = Priority.MEDIUM,
-        programId,
-        submissionId,
-        tags = [],
-        isPublic = false,
-        metadata
-      }: CreateReportDTO = req.body;
+      if (!this.checkAuthorization(req, res)) return;
+      
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
-      const user = req.user;
-
-      const report = await reportsDb.report.create({
-        data: {
-          title,
-          description,
-          content,
-          status,
-          type,
-          priority,
-          authorId: user.id,
-          authorEmail: user.email,
-          authorName: user.name,
-          programId,
-          submissionId,
-          tags,
-          isPublic,
-          metadata: metadata ?? {}
-        },
-        include: {
-          collaborators: true,
-          comments: true,
-          versions: true
-        }
-      });
-
-      const response: ReportWithAuthor = {
-        ...report,
-        author: user
+      const dto: CreateReportDTO = {
+        ...req.body,
+        status: this.toReportStatus(req.body.status),
+        type: this.toReportType(req.body.type),
+        priority: this.toPriority(req.body.priority)
       };
+
+      const report = await prisma.report.create({
+        data: {
+          title: dto.title,
+          description: dto.description,
+          content: dto.content || '',
+          status: dto.status,
+          type: dto.type,
+          priority: dto.priority,
+          authorId: req.user.id,
+          programId: dto.programId,
+          submissionId: dto.submissionId,
+          tags: dto.tags || [],
+          isPublic: dto.isPublic || false,
+          metadata: dto.metadata || {},
+          attachments: dto.attachments || []
+        },
+        include: this.getReportIncludes()
+      });
 
       res.status(201).json({
         message: 'Report created successfully',
-        data: response
+        data: this.formatReport(report)
       });
     } catch (error) {
-      console.error('Error creating report:', error);
-      res.status(500).json({ error: 'Failed to create report' });
+      this.handleError(res, error, 'create report');
     }
   }
 
-  // GET /reports/:id
-  async getReportById(req: AuthenticatedRequest, res: Response): Promise<void> {
+
+ async getAllReports(req: Request, res: Response): Promise<void> {
+  try {
+    if (!this.checkAuthorization(req, res)) return;
+
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const query = req.query as ReportQueryParams;
+    const { page, limit, skip } = this.getPaginationParams(query);
+
+    const where = {
+      AND: [
+        {
+          OR: [
+            { authorId: req.user.id },
+            { isPublic: true }
+          ]
+        },
+        ...(query.search ? [{
+          OR: [
+            { title: { contains: query.search, mode: 'insensitive' as const } },
+            { description: { contains: query.search, mode: 'insensitive' as const } }
+          ]
+        }] : []),
+        ...(query.status ? [{ status: this.toReportStatus(query.status) }] : []),
+        ...(query.type ? [{ type: this.toReportType(query.type) }] : []),
+        ...(query.priority ? [{ priority: this.toPriority(query.priority) }] : []),
+        ...(query.programId ? [{ programId: query.programId }] : []),
+        ...(query.submissionId ? [{ submissionId: query.submissionId }] : []),
+        ...(query.isPublic ? [{ isPublic: query.isPublic === 'true' }] : []),
+        ...(query.tags ? [{
+          tags: { hasSome: query.tags.split(',').map(tag => tag.trim()) }
+        }] : []),
+      ]
+    };
+
+    const [reports, total] = await Promise.all([
+      prisma.report.findMany({
+        where,
+        include: this.getReportIncludes(),
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.report.count({ where })
+    ]);
+
+    const response = this.createPaginationResponse(
+      reports.map(report => this.formatReport(report)),
+      total,
+      page,
+      limit
+    );
+
+    res.json(response);
+  } catch (error) {
+    this.handleError(res, error, 'fetch reports');
+  }
+}
+
+
+  // READ (Single)
+  async getReportById(req: Request, res: Response): Promise<void> {
     try {
+      if (!this.checkAuthorization(req, res)) return;
+      
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
       const { id } = req.params;
 
-      const report = await reportsDb.report.findFirst({
+      const report = await prisma.report.findFirst({
         where: {
           id,
           OR: [
             { authorId: req.user.id },
-            { isPublic: true },
-            {
-              collaborators: {
-                some: { userId: req.user.id }
-              }
-            }
+            { isPublic: true }
           ]
         },
-        include: {
-          collaborators: true,
-          comments: {
-            include: {
-              replies: true
-            },
-            orderBy: { createdAt: 'desc' }
-          },
-          versions: {
-            orderBy: { version: 'desc' },
-            take: 10
-          },
-          parentReport: {
-            select: { id: true, title: true }
-          },
-          childReports: {
-            select: { id: true, title: true, status: true }
-          }
-        }
+        include: this.getReportIncludes()
       });
 
       if (!report) {
@@ -224,46 +256,26 @@ class ReportController {
         return;
       }
 
-      // Get author data from main database
-      const author = await prisma.user.findUnique({
-        where: { id: report.authorId },
-        select: { id: true, name: true, email: true, role: true }
-      });
-
-      const response: ReportWithRelations = {
-        ...report,
-        author: author ?? undefined
-      };
-
-      res.json({ data: response });
+      res.json({ data: this.formatReport(report) });
     } catch (error) {
-      console.error('Error fetching report:', error);
-      res.status(500).json({ error: 'Failed to fetch report' });
+      this.handleError(res, error, 'fetch report');
     }
   }
 
-  // PUT /reports/:id
-  async updateReport(req: AuthenticatedRequest, res: Response): Promise<void> {
+  // UPDATE
+  async updateReport(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
-      const updateData: UpdateReportDTO = req.body;
+      if (!this.checkAuthorization(req, res)) return;
+      
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
-      // Check if user has permission to edit
-      const existingReport = await reportsDb.report.findFirst({
-        where: {
-          id,
-          OR: [
-            { authorId: req.user.id },
-            {
-              collaborators: {
-                some: {
-                  userId: req.user.id,
-                  role: { in: ['EDITOR', 'ADMIN'] }
-                }
-              }
-            }
-          ]
-        }
+      const { id } = req.params;
+      const existingReport = await prisma.report.findFirst({
+        where: { id, authorId: req.user.id }
       });
 
       if (!existingReport) {
@@ -271,91 +283,44 @@ class ReportController {
         return;
       }
 
-      // Create version history
-      const latestVersion = await reportsDb.reportVersion.findFirst({
-        where: { reportId: id },
-        orderBy: { version: 'desc' }
-      });
+      const updateData: UpdateReportDTO = {
+        ...req.body,
+        ...(req.body.status && { status: this.toReportStatus(req.body.status) }),
+        ...(req.body.type && { type: this.toReportType(req.body.type) }),
+        ...(req.body.priority && { priority: this.toPriority(req.body.priority) })
+      };
 
-      const newVersion = (latestVersion?.version ?? 0) + 1;
-
-      await reportsDb.reportVersion.create({
-        data: {
-          reportId: id,
-          version: newVersion,
-          title: existingReport.title,
-          description: existingReport.description,
-          content: existingReport.content,
-          changes: 'Updated via API',
-          createdById: req.user.id,
-          createdByEmail: req.user.email,
-          createdByName: req.user.name
-        }
-      });
-
-      // Update the report
-      const updatedReport = await reportsDb.report.update({
+      const updatedReport = await prisma.report.update({
         where: { id },
         data: {
           ...updateData,
           updatedAt: new Date()
         },
-        include: {
-          collaborators: true,
-          comments: true,
-          versions: {
-            orderBy: { version: 'desc' },
-            take: 5
-          }
-        }
+        include: this.getReportIncludes()
       });
 
       res.json({
         message: 'Report updated successfully',
-        data: updatedReport
+        data: this.formatReport(updatedReport)
       });
     } catch (error) {
-      console.error('Error updating report:', error);
-      res.status(500).json({ error: 'Failed to update report' });
+      this.handleError(res, error, 'update report');
     }
   }
 
-  // DELETE /reports/:id
-  async deleteReport(req: AuthenticatedRequest, res: Response): Promise<void> {
+  // DELETE
+  async deleteReport(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
-
-      const report = await reportsDb.report.findFirst({
-        where: {
-          id,
-          authorId: req.user.id // Only author can delete
-        }
-      });
-
-      if (!report) {
-        res.status(404).json({ error: 'Report not found or access denied' });
-        return;
-      }
-
-      await reportsDb.report.delete({
-        where: { id }
-      });
-
-      res.json({ message: 'Report deleted successfully' });
-    } catch (error) {
-      console.error('Error deleting report:', error);
-      res.status(500).json({ error: 'Failed to delete report' });
+      if (!this.checkAuthorization(req, res)) return;
+      
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
-  }
 
-  // POST /reports/:id/collaborators
-  async addCollaborator(req: AuthenticatedRequest, res: Response): Promise<void> {
-    try {
       const { id } = req.params;
-      const { userId, role = 'VIEWER' } = req.body;
-
-      // Check if user owns the report
-      const report = await reportsDb.report.findFirst({
+      const report = await prisma.report.findFirst({
         where: { id, authorId: req.user.id }
       });
 
@@ -364,57 +329,28 @@ class ReportController {
         return;
       }
 
-      // Get user data from main database
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, name: true, email: true }
-      });
+      await prisma.report.delete({ where: { id } });
 
-      if (!user) {
-        res.status(404).json({ error: 'User not found' });
-        return;
-      }
-
-      const collaborator = await reportsDb.reportCollaborator.create({
-        data: {
-          reportId: id,
-          userId: user.id,
-          userEmail: user.email,
-          userName: user.name,
-          role
-        }
-      });
-
-      res.status(201).json({
-        message: 'Collaborator added successfully',
-        data: collaborator
-      });
+      res.json({ message: 'Report deleted successfully' });
     } catch (error) {
-      console.error('Error adding collaborator:', error);
-      res.status(500).json({ error: 'Failed to add collaborator' });
+      this.handleError(res, error, 'delete report');
     }
   }
 
-  // POST /reports/:id/comments
-  async addComment(req: AuthenticatedRequest, res: Response): Promise<void> {
+  // PUBLISH
+  async publishReport(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
-      const { content, parentCommentId } = req.body;
+      if (!this.checkAuthorization(req, res)) return;
+      
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
-      // Check if user has access to the report
-      const report = await reportsDb.report.findFirst({
-        where: {
-          id,
-          OR: [
-            { authorId: req.user.id },
-            { isPublic: true },
-            {
-              collaborators: {
-                some: { userId: req.user.id }
-              }
-            }
-          ]
-        }
+      const { id } = req.params;
+      const report = await prisma.report.findFirst({
+        where: { id, authorId: req.user.id }
       });
 
       if (!report) {
@@ -422,27 +358,143 @@ class ReportController {
         return;
       }
 
-      const comment = await reportsDb.reportComment.create({
+      const updatedReport = await prisma.report.update({
+        where: { id },
         data: {
-          content,
-          reportId: id,
-          authorId: req.user.id,
-          authorEmail: req.user.email,
-          authorName: req.user.name,
-          parentCommentId
+          status: ReportStatus.PUBLISHED,
+          isPublic: true,
+          publishedAt: new Date(),
+          updatedAt: new Date()
         },
-        include: {
-          replies: true
-        }
+        include: this.getReportIncludes()
       });
 
-      res.status(201).json({
-        message: 'Comment added successfully',
-        data: comment
+      res.json({
+        message: 'Report published successfully',
+        data: this.formatReport(updatedReport)
       });
     } catch (error) {
-      console.error('Error adding comment:', error);
-      res.status(500).json({ error: 'Failed to add comment' });
+      this.handleError(res, error, 'publish report');
+    }
+  }
+
+  // GET BY PROGRAM
+  async getReportsByProgram(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.checkAuthorization(req, res)) return;
+      
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+      const { programId } = req.params;
+      const { page, limit, skip } = this.getPaginationParams(req.query);
+
+      const where = {
+        programId,
+        OR: [
+          { authorId: req.user.id },
+          { isPublic: true }
+        ]
+      };
+
+      const [reports, total] = await Promise.all([
+        prisma.report.findMany({
+          where,
+          include: this.getReportIncludes(),
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        prisma.report.count({ where })
+      ]);
+
+      const response = this.createPaginationResponse(
+        reports.map(report => this.formatReport(report)),
+        total,
+        page,
+        limit
+      );
+
+      res.json(response);
+    } catch (error) {
+      this.handleError(res, error, 'fetch reports by program');
+    }
+  }
+
+  // GET BY SUBMISSION
+  async getReportsBySubmission(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.checkAuthorization(req, res)) return;
+      
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+      const { submissionId } = req.params;
+      const reports = await prisma.report.findMany({
+        where: {
+          submissionId,
+          OR: [
+            { authorId: req.user.id },
+            { isPublic: true }
+          ]
+        },
+        include: this.getReportIncludes(),
+        orderBy: { createdAt: 'desc' }
+      });
+
+      res.json({ 
+        data: reports.map(report => this.formatReport(report)) 
+      });
+    } catch (error) {
+      this.handleError(res, error, 'fetch reports by submission');
+    }
+  }
+
+  // GET USER REPORTS
+  async getMyReports(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.checkAuthorization(req, res)) return;
+      
+    if (!req.user) {
+      logger.warn(`Unauthorized attempt to create report`);
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+      const { status, type } = req.query;
+      const { page, limit, skip } = this.getPaginationParams(req.query);
+
+      const where: any = { authorId: req.user.id };
+      if (status) where.status = this.toReportStatus(status as string);
+      if (type) where.type = this.toReportType(type as string);
+
+      const [reports, total] = await Promise.all([
+        prisma.report.findMany({
+          where,
+          include: this.getReportIncludes(),
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        prisma.report.count({ where })
+        
+      ]);
+
+      const response = this.createPaginationResponse(
+        reports.map(report => this.formatReport(report)),
+        total,
+        page,
+        limit
+      );
+
+      res.json(response);
+    } catch (error) {
+      this.handleError(res, error, 'fetch my reports');
     }
   }
 }
