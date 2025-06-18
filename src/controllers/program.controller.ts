@@ -1,5 +1,8 @@
 // controllers/programController.ts
 import { Request, Response } from "express";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 export class ProgramController {
   
@@ -9,45 +12,66 @@ export class ProgramController {
       const {
         title,
         description,
-        software_name,
-        software_version,
+        websiteName,
+        websiteUrls,
         scope,
-        out_of_scope,
+        outOfScope,
         rewards,
-        submission_guidelines,
-        disclosure_policy,
-        start_date,
-        end_date,
+        submissionGuidelines,
+        disclosurePolicy,
+        startDate,
+        endDate,
         status = "DRAFT"
       } = req.body;
 
-      const newProgram = {
-        id: Date.now(), // Replace with proper ID generation
-        organization_id: req.user?.id ?? null,
-        title,
-        description,
-        software_name,
-        software_version,
-        scope,
-        out_of_scope,
-        rewards,
-        submission_guidelines,
-        disclosure_policy,
-        start_date,
-        end_date,
-        status,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+      // Ensure user has an organization
+      if (!req.user?.id) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
 
-      // TODO: Save to database
-      // const savedProgram = await ProgramService.create(newProgram);
+      // Get the organization for this user
+      const organization = await prisma.organization.findUnique({
+        where: { userId: req.user.id }
+      });
+
+      if (!organization) {
+        res.status(404).json({ message: "Organization not found. Please create an organization first." });
+        return;
+      }
+
+      const newProgram = await prisma.program.create({
+        data: {
+          title,
+          description,
+          websiteName,
+          websiteUrls: Array.isArray(websiteUrls) ? websiteUrls : [websiteUrls].filter(Boolean),
+          scope,
+          outOfScope,
+          rewards: rewards || {},
+          submissionGuidelines,
+          disclosurePolicy,
+          startDate: startDate ? new Date(startDate) : null,
+          endDate: endDate ? new Date(endDate) : null,
+          status,
+          organizationId: organization.id
+        },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
 
       res.status(201).json({
         message: "Bug bounty program created successfully",
         program: newProgram
       });
     } catch (error) {
+      console.error("Error creating program:", error);
       res.status(500).json({ 
         message: "Failed to create program", 
         error: error instanceof Error ? error.message : String(error)
@@ -58,23 +82,50 @@ export class ProgramController {
   // Get all programs for organization
   static async getPrograms(req: Request, res: Response): Promise<void> {
     try {
-      // TODO: Fetch from database
-      const programs = [
-        {
-          id: 1,
-          organization_id: req.user?.id ?? null,
-          title: "Web Application Security Test",
-          software_name: "MyApp Web Portal",
-          status: "ACTIVE",
-          created_at: "2024-01-15T10:30:00Z"
+      if (!req.user?.id) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+
+      // Get the organization for this user
+      const organization = await prisma.organization.findUnique({
+        where: { userId: req.user.id }
+      });
+
+      if (!organization) {
+        res.status(404).json({ message: "Organization not found" });
+        return;
+      }
+
+      const programs = await prisma.program.findMany({
+        where: {
+          organizationId: organization.id
+        },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          _count: {
+            select: {
+              submissions: true,
+              reports: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
         }
-      ];
+      });
 
       res.json({
         message: "Programs retrieved successfully",
         programs
       });
     } catch (error) {
+      console.error("Error retrieving programs:", error);
       res.status(500).json({ 
         message: "Failed to retrieve programs", 
         error: error instanceof Error ? error.message : String(error)
@@ -87,32 +138,69 @@ export class ProgramController {
     try {
       const programId = req.params.id;
       
-      // TODO: Fetch from database with ownership check
-      const program = {
-        id: programId,
-        organization_id: req.user?.id ?? null,
-        title: "Web Application Security Test",
-        description: "Find vulnerabilities in our web application",
-        software_name: "MyApp Web Portal",
-        software_version: "v2.1.0",
-        scope: "web application, API endpoints, authentication system",
-        out_of_scope: "social engineering, physical attacks, DoS attacks",
-        rewards: {
-          critical: "$1000-$5000",
-          high: "$500-$1000",
-          medium: "$100-$500",
-          low: "$50-$100"
+      if (!req.user?.id) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+
+      // Get the organization for this user
+      const organization = await prisma.organization.findUnique({
+        where: { userId: req.user.id }
+      });
+
+      if (!organization) {
+        res.status(404).json({ message: "Organization not found" });
+        return;
+      }
+
+      const program = await prisma.program.findFirst({
+        where: {
+          id: programId,
+          organizationId: organization.id // Ensure ownership
         },
-        submission_guidelines: "Provide detailed steps to reproduce the vulnerability",
-        disclosure_policy: "90-day coordinated disclosure",
-        start_date: "2024-02-01T00:00:00Z",
-        end_date: "2024-05-01T23:59:59Z",
-        status: "ACTIVE",
-        created_at: "2024-01-15T10:30:00Z"
-      };
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              website: true
+            }
+          },
+          submissions: {
+            select: {
+              id: true,
+              title: true,
+              severity: true,
+              status: true,
+              researcherEmail: true,
+              researcherName: true,
+              createdAt: true
+            },
+            orderBy: {
+              createdAt: 'desc'
+            }
+          },
+          reports: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              type: true,
+              priority: true,
+              createdAt: true
+            }
+          },
+          _count: {
+            select: {
+              submissions: true,
+              reports: true
+            }
+          }
+        }
+      });
 
       if (!program) {
-        res.status(404).json({ message: "Program not found" });
+        res.status(404).json({ message: "Program not found or access denied" });
         return;
       }
 
@@ -121,6 +209,7 @@ export class ProgramController {
         program
       });
     } catch (error) {
+      console.error("Error retrieving program:", error);
       res.status(500).json({ 
         message: "Failed to retrieve program", 
         error: error instanceof Error ? error.message : String(error)
@@ -132,21 +221,83 @@ export class ProgramController {
   static async updateProgram(req: Request, res: Response): Promise<void> {
     try {
       const programId = req.params.id;
-      const updates = req.body;
+      const {
+        title,
+        description,
+        websiteName,
+        websiteUrls,
+        scope,
+        outOfScope,
+        rewards,
+        submissionGuidelines,
+        disclosurePolicy,
+        startDate,
+        endDate,
+        status
+      } = req.body;
 
-      // TODO: Update in database with ownership check
-      const updatedProgram = {
-        id: programId,
-        organization_id: req.user?.id ?? null,
-        ...updates,
-        updated_at: new Date().toISOString()
-      };
+      if (!req.user?.id) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+
+      // Get the organization for this user
+      const organization = await prisma.organization.findUnique({
+        where: { userId: req.user.id }
+      });
+
+      if (!organization) {
+        res.status(404).json({ message: "Organization not found" });
+        return;
+      }
+
+      // Check if program exists and belongs to user's organization
+      const existingProgram = await prisma.program.findFirst({
+        where: {
+          id: programId,
+          organizationId: organization.id
+        }
+      });
+
+      if (!existingProgram) {
+        res.status(404).json({ message: "Program not found or access denied" });
+        return;
+      }
+
+      // Build update data object, only including provided fields
+      const updateData: any = {};
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (websiteName !== undefined) updateData.websiteName = websiteName;
+      if (websiteUrls !== undefined) updateData.websiteUrls = Array.isArray(websiteUrls) ? websiteUrls : [websiteUrls].filter(Boolean);
+      if (scope !== undefined) updateData.scope = scope;
+      if (outOfScope !== undefined) updateData.outOfScope = outOfScope;
+      if (rewards !== undefined) updateData.rewards = rewards;
+      if (submissionGuidelines !== undefined) updateData.submissionGuidelines = submissionGuidelines;
+      if (disclosurePolicy !== undefined) updateData.disclosurePolicy = disclosurePolicy;
+      if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
+      if (endDate !== undefined) updateData.endDate = endDate ? new Date(endDate) : null;
+      if (status !== undefined) updateData.status = status;
+
+      const updatedProgram = await prisma.program.update({
+        where: { id: programId },
+        data: updateData,
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
 
       res.json({
         message: "Program updated successfully",
         program: updatedProgram
       });
     } catch (error) {
+      console.error("Error updating program:", error);
       res.status(500).json({ 
         message: "Failed to update program", 
         error: error instanceof Error ? error.message : String(error)
@@ -159,13 +310,43 @@ export class ProgramController {
     try {
       const programId = req.params.id;
 
-      // TODO: Delete from database with ownership check
-      // await ProgramService.delete(programId, req.user.id);
+      if (!req.user?.id) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+
+      // Get the organization for this user
+      const organization = await prisma.organization.findUnique({
+        where: { userId: req.user.id }
+      });
+
+      if (!organization) {
+        res.status(404).json({ message: "Organization not found" });
+        return;
+      }
+
+      // Check if program exists and belongs to user's organization
+      const existingProgram = await prisma.program.findFirst({
+        where: {
+          id: programId,
+          organizationId: organization.id
+        }
+      });
+
+      if (!existingProgram) {
+        res.status(404).json({ message: "Program not found or access denied" });
+        return;
+      }
+
+      await prisma.program.delete({
+        where: { id: programId }
+      });
 
       res.json({
         message: "Program deleted successfully"
       });
     } catch (error) {
+      console.error("Error deleting program:", error);
       res.status(500).json({ 
         message: "Failed to delete program", 
         error: error instanceof Error ? error.message : String(error)
@@ -179,18 +360,63 @@ export class ProgramController {
       const programId = req.params.id;
       const { status } = req.body;
 
-      // TODO: Update status in database with ownership check
-      const updatedProgram = {
-        id: programId,
-        status,
-        updated_at: new Date().toISOString()
-      };
+      if (!req.user?.id) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+
+      // Validate status
+      const validStatuses = ['DRAFT', 'ACTIVE', 'PAUSED', 'CLOSED'];
+      if (!validStatuses.includes(status)) {
+        res.status(400).json({ 
+          message: "Invalid status", 
+          validStatuses 
+        });
+        return;
+      }
+
+      // Get the organization for this user
+      const organization = await prisma.organization.findUnique({
+        where: { userId: req.user.id }
+      });
+
+      if (!organization) {
+        res.status(404).json({ message: "Organization not found" });
+        return;
+      }
+
+      // Check if program exists and belongs to user's organization
+      const existingProgram = await prisma.program.findFirst({
+        where: {
+          id: programId,
+          organizationId: organization.id
+        }
+      });
+
+      if (!existingProgram) {
+        res.status(404).json({ message: "Program not found or access denied" });
+        return;
+      }
+
+      const updatedProgram = await prisma.program.update({
+        where: { id: programId },
+        data: { status },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
 
       res.json({
         message: "Program status updated successfully",
         program: updatedProgram
       });
     } catch (error) {
+      console.error("Error updating program status:", error);
       res.status(500).json({ 
         message: "Failed to update program status", 
         error: error instanceof Error ? error.message : String(error)

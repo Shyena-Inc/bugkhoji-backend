@@ -10,10 +10,22 @@ import {
   ReportStatus,
   ReportType,
   Priority,
-  User
 } from '../types/report';
 
 class ReportController {
+  constructor() {
+    // Bind all methods to maintain 'this' context
+    this.getAllReports = this.getAllReports.bind(this);
+    this.createReport = this.createReport.bind(this);
+    this.getReportById = this.getReportById.bind(this);
+    this.updateReport = this.updateReport.bind(this);
+    this.deleteReport = this.deleteReport.bind(this);
+    this.publishReport = this.publishReport.bind(this);
+    this.getReportsByProgram = this.getReportsByProgram.bind(this);
+    this.getReportsBySubmission = this.getReportsBySubmission.bind(this);
+    this.getMyReports = this.getMyReports.bind(this);
+  }
+
   // Error handler
   private handleError(res: Response, error: unknown, context: string) {
     logger.error(`Error in ${context}:`, error);
@@ -121,11 +133,11 @@ class ReportController {
     try {
       if (!this.checkAuthorization(req, res)) return;
       
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to create report`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
       const dto: CreateReportDTO = {
         ...req.body,
@@ -162,81 +174,79 @@ class ReportController {
     }
   }
 
+  async getAllReports(req: Request, res: Response): Promise<void> {
+    try {
+      if (!this.checkAuthorization(req, res)) return;
 
- async getAllReports(req: Request, res: Response): Promise<void> {
-  try {
-    if (!this.checkAuthorization(req, res)) return;
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to get reports`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
+      const query = req.query as ReportQueryParams;
+      const { page, limit, skip } = this.getPaginationParams(query);
+
+      const where = {
+        AND: [
+          {
+            OR: [
+              { authorId: req.user.id },
+              { isPublic: true }
+            ]
+          },
+          ...(query.search ? [{
+            OR: [
+              { title: { contains: query.search, mode: 'insensitive' as const } },
+              { description: { contains: query.search, mode: 'insensitive' as const } }
+            ]
+          }] : []),
+          ...(query.status ? [{ status: this.toReportStatus(query.status) }] : []),
+          ...(query.type ? [{ type: this.toReportType(query.type) }] : []),
+          ...(query.priority ? [{ priority: this.toPriority(query.priority) }] : []),
+          ...(query.programId ? [{ programId: query.programId }] : []),
+          ...(query.submissionId ? [{ submissionId: query.submissionId }] : []),
+          ...(query.isPublic ? [{ isPublic: query.isPublic === 'true' }] : []),
+          ...(query.tags ? [{
+            tags: { hasSome: query.tags.split(',').map(tag => tag.trim()) }
+          }] : []),
+        ]
+      };
+
+      const [reports, total] = await Promise.all([
+        prisma.report.findMany({
+          where,
+          include: this.getReportIncludes(),
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        prisma.report.count({ where })
+      ]);
+
+      const response = this.createPaginationResponse(
+        reports.map(report => this.formatReport(report)),
+        total,
+        page,
+        limit
+      );
+
+      res.json(response);
+    } catch (error) {
+      this.handleError(res, error, 'fetch reports');
     }
-
-    const query = req.query as ReportQueryParams;
-    const { page, limit, skip } = this.getPaginationParams(query);
-
-    const where = {
-      AND: [
-        {
-          OR: [
-            { authorId: req.user.id },
-            { isPublic: true }
-          ]
-        },
-        ...(query.search ? [{
-          OR: [
-            { title: { contains: query.search, mode: 'insensitive' as const } },
-            { description: { contains: query.search, mode: 'insensitive' as const } }
-          ]
-        }] : []),
-        ...(query.status ? [{ status: this.toReportStatus(query.status) }] : []),
-        ...(query.type ? [{ type: this.toReportType(query.type) }] : []),
-        ...(query.priority ? [{ priority: this.toPriority(query.priority) }] : []),
-        ...(query.programId ? [{ programId: query.programId }] : []),
-        ...(query.submissionId ? [{ submissionId: query.submissionId }] : []),
-        ...(query.isPublic ? [{ isPublic: query.isPublic === 'true' }] : []),
-        ...(query.tags ? [{
-          tags: { hasSome: query.tags.split(',').map(tag => tag.trim()) }
-        }] : []),
-      ]
-    };
-
-    const [reports, total] = await Promise.all([
-      prisma.report.findMany({
-        where,
-        include: this.getReportIncludes(),
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit
-      }),
-      prisma.report.count({ where })
-    ]);
-
-    const response = this.createPaginationResponse(
-      reports.map(report => this.formatReport(report)),
-      total,
-      page,
-      limit
-    );
-
-    res.json(response);
-  } catch (error) {
-    this.handleError(res, error, 'fetch reports');
   }
-}
-
 
   // READ (Single)
   async getReportById(req: Request, res: Response): Promise<void> {
     try {
       if (!this.checkAuthorization(req, res)) return;
       
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to get report`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
       const { id } = req.params;
 
@@ -267,11 +277,11 @@ class ReportController {
     try {
       if (!this.checkAuthorization(req, res)) return;
       
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to update report`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
       const { id } = req.params;
       const existingReport = await prisma.report.findFirst({
@@ -313,11 +323,11 @@ class ReportController {
     try {
       if (!this.checkAuthorization(req, res)) return;
       
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to delete report`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
       const { id } = req.params;
       const report = await prisma.report.findFirst({
@@ -342,11 +352,11 @@ class ReportController {
     try {
       if (!this.checkAuthorization(req, res)) return;
       
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to publish report`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
       const { id } = req.params;
       const report = await prisma.report.findFirst({
@@ -383,11 +393,11 @@ class ReportController {
     try {
       if (!this.checkAuthorization(req, res)) return;
       
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to get reports by program`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
       const { programId } = req.params;
       const { page, limit, skip } = this.getPaginationParams(req.query);
@@ -429,11 +439,11 @@ class ReportController {
     try {
       if (!this.checkAuthorization(req, res)) return;
       
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to get reports by submission`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
 
       const { submissionId } = req.params;
       const reports = await prisma.report.findMany({
@@ -461,11 +471,12 @@ class ReportController {
     try {
       if (!this.checkAuthorization(req, res)) return;
       
-    if (!req.user) {
-      logger.warn(`Unauthorized attempt to create report`);
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+      if (!req.user) {
+        logger.warn(`Unauthorized attempt to get my reports`);
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+      
       const { status, type } = req.query;
       const { page, limit, skip } = this.getPaginationParams(req.query);
 
@@ -482,7 +493,6 @@ class ReportController {
           take: limit
         }),
         prisma.report.count({ where })
-        
       ]);
 
       const response = this.createPaginationResponse(

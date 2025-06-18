@@ -1,7 +1,7 @@
 import express from "express";
 import reportController from "../controllers/report.controller";
 import { authenticate } from "../middleware/auth";
-import { validate } from "../middleware/validate"; // Fixed path (removed 'src')
+import { validate,validateQuery } from "../middleware/validate"; // Fixed path (removed 'src')
 import {
   createReportSchema,
   updateReportSchema,
@@ -11,11 +11,11 @@ import {
 const router = express.Router();
 
 
-router.get("/",authenticate,validate(reportQuerySchema), reportController.getAllReports);
+router.get("/",authenticate,validate(reportQuerySchema), reportController.getAllReports,);
 
 router.post("/", authenticate, validate(createReportSchema), reportController.createReport );
 
-router.get( "/my-reports", authenticate, validate(reportQuerySchema), reportController.getMyReports);
+router.get( "/my-reports", authenticate, validateQuery(reportQuerySchema), reportController.getMyReports);
 
 router.get("/:id", authenticate, reportController.getReportById);
 
