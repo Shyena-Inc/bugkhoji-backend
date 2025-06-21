@@ -11,6 +11,7 @@ import {
   ReportType,
   Priority,
 } from '../types/report';
+import { number } from 'joi';
 
 class ReportController {
   constructor() {
@@ -155,8 +156,8 @@ class ReportController {
           type: dto.type,
           priority: dto.priority,
           authorId: req.user.id,
-          programId: dto.programId,
-          submissionId: dto.submissionId,
+          programId: +dto.programId!,
+          submissionId: +dto.submissionId!,
           tags: dto.tags || [],
           isPublic: dto.isPublic || false,
           metadata: dto.metadata || {},
@@ -215,13 +216,17 @@ class ReportController {
 
       const [reports, total] = await Promise.all([
         prisma.report.findMany({
-          where,
+          where:{
+
+          },
           include: this.getReportIncludes(),
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit
         }),
-        prisma.report.count({ where })
+        prisma.report.count({ where:{
+
+        } })
       ]);
 
       const response = this.createPaginationResponse(
@@ -252,7 +257,7 @@ class ReportController {
 
       const report = await prisma.report.findFirst({
         where: {
-          id,
+          id:+id,
           OR: [
             { authorId: req.user.id },
             { isPublic: true }
@@ -285,7 +290,7 @@ class ReportController {
 
       const { id } = req.params;
       const existingReport = await prisma.report.findFirst({
-        where: { id, authorId: req.user.id }
+        where: { id:+id, authorId: req.user.id }
       });
 
       if (!existingReport) {
@@ -301,7 +306,7 @@ class ReportController {
       };
 
       const updatedReport = await prisma.report.update({
-        where: { id },
+        where: { id:+id },
         data: {
           ...updateData,
           updatedAt: new Date()
@@ -331,7 +336,7 @@ class ReportController {
 
       const { id } = req.params;
       const report = await prisma.report.findFirst({
-        where: { id, authorId: req.user.id }
+        where: { id:+id, authorId: req.user.id }
       });
 
       if (!report) {
@@ -339,7 +344,7 @@ class ReportController {
         return;
       }
 
-      await prisma.report.delete({ where: { id } });
+      await prisma.report.delete({ where: { id:+id } });
 
       res.json({ message: 'Report deleted successfully' });
     } catch (error) {
@@ -360,7 +365,7 @@ class ReportController {
 
       const { id } = req.params;
       const report = await prisma.report.findFirst({
-        where: { id, authorId: req.user.id }
+        where: { id:+id, authorId: req.user.id }
       });
 
       if (!report) {
@@ -369,7 +374,7 @@ class ReportController {
       }
 
       const updatedReport = await prisma.report.update({
-        where: { id },
+        where: { id:+id },
         data: {
           status: ReportStatus.PUBLISHED,
           isPublic: true,
@@ -412,13 +417,13 @@ class ReportController {
 
       const [reports, total] = await Promise.all([
         prisma.report.findMany({
-          where,
+          where:{},
           include: this.getReportIncludes(),
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit
         }),
-        prisma.report.count({ where })
+        prisma.report.count({ where:{} })
       ]);
 
       const response = this.createPaginationResponse(
@@ -448,7 +453,7 @@ class ReportController {
       const { submissionId } = req.params;
       const reports = await prisma.report.findMany({
         where: {
-          submissionId,
+          submissionId:+submissionId,
           OR: [
             { authorId: req.user.id },
             { isPublic: true }

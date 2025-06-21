@@ -31,7 +31,7 @@ router.post('/test-audit', authenticate, authorize(['ADMIN']), async (req: Reque
     logger.error('Failed to create test audit log:', error)
     res.status(500).json({ error: 'Failed to create audit log' })
   }
-})
+})  
 
 // Get recent audit logs with pagination
 router.get('/recent', authenticate, authorize(['ADMIN']), async (req: Request, res: Response) => {
@@ -107,7 +107,6 @@ router.get('/user/:userId', authenticate, authorize(['ADMIN']), async (req: Requ
     }
 
     const auditLogs = await prisma.auditLog.findMany({
-      where,
       orderBy: { createdAt: 'desc' },
       include: {
         performedBy: {

@@ -45,7 +45,7 @@ const authLimiter = rateLimit({
 // UTILITY FUNCTIONS
 // ============================================================================
 
-const generateToken = (id: string, role: string): string => {
+const generateToken = (id: number, role: string): string => {
   const secret = config.JWT_SECRET;
 
   if (!secret) {
@@ -71,7 +71,7 @@ const setRefreshTokenCookie = (res: Response, refreshToken: string): void => {
 };
 
 interface UserLoginData {
-  id: string;
+  id: number;
   email: string;
   passwordHash: string;
   role: string;
@@ -100,7 +100,7 @@ const handleLoginSuccess = async (
 
   // Generate tokens
   const accessToken = generateToken(user.id, user.role);
-  const { token: refreshToken } = await generateRefreshToken(user.id, "");
+  const { token: refreshToken } = await generateRefreshToken(user.id,undefined);
 
   // Set refresh token cookie
   setRefreshTokenCookie(res, refreshToken);
@@ -586,7 +586,7 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
 
     // Get user data
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: +decoded.id },
       select: { id: true, email: true, role: true, isActive: true },
     });
 
@@ -606,7 +606,7 @@ router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
     // Generate new tokens
     const accessToken = generateToken(user.id, user.role);
     // Use the previously extracted sessionId
-    const { token: newRefreshToken } = await generateRefreshToken(user.id, sessionId);
+    const { token: newRefreshToken } = await generateRefreshToken(+user.id, sessionId);
 
     // Set new refresh token cookie
     setRefreshTokenCookie(res, newRefreshToken);

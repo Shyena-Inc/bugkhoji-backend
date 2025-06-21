@@ -77,7 +77,7 @@ export const verifyAccessToken = (token: string): AccessTokenPayload => {
 // JWT TOKEN GENERATION
 // ============================================================================
 
-export const generateRefreshToken = async (userId: string, id: string): Promise<{ token: string; expiresAt: Date }> => {
+export const generateRefreshToken = async (userId: number, id: number|undefined): Promise<{ token: string; expiresAt: Date }> => {
   try {
     const secret = config.JWT_SECRET
     if (!secret) {
@@ -106,7 +106,7 @@ export const generateRefreshToken = async (userId: string, id: string): Promise<
     // Store refresh token hash in database
     // Note: Make sure your User model has a refreshTokenHash field
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: +userId },
       data: { 
         refreshTokenHash: tokenHash,
         refreshTokenExpiresAt: expiresAt,
@@ -139,7 +139,7 @@ export const verifyRefreshToken = async (token: string, userId: string, sessionI
 
     // Get stored token hash from database
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: +userId },
       select: { 
         refreshTokenHash: true, 
         refreshTokenExpiresAt: true,
@@ -171,7 +171,7 @@ export const verifyRefreshToken = async (token: string, userId: string, sessionI
 export const invalidateRefreshToken = async (userId: string, sessionId: string): Promise<void> => {
   try {
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: +userId },
       data: { 
         refreshTokenHash: null,
         refreshTokenExpiresAt: null,

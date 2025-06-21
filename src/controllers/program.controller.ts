@@ -155,7 +155,7 @@ export class ProgramController {
 
       const program = await prisma.program.findFirst({
         where: {
-          id: programId,
+          id: +programId,
           organizationId: organization.id // Ensure ownership
         },
         include: {
@@ -254,7 +254,7 @@ export class ProgramController {
       // Check if program exists and belongs to user's organization
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: programId,
+          id: +programId,
           organizationId: organization.id
         }
       });
@@ -280,7 +280,7 @@ export class ProgramController {
       if (status !== undefined) updateData.status = status;
 
       const updatedProgram = await prisma.program.update({
-        where: { id: programId },
+        where: { id: +programId },
         data: updateData,
         include: {
           organization: {
@@ -328,7 +328,7 @@ export class ProgramController {
       // Check if program exists and belongs to user's organization
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: programId,
+          id: +programId,
           organizationId: organization.id
         }
       });
@@ -339,7 +339,7 @@ export class ProgramController {
       }
 
       await prisma.program.delete({
-        where: { id: programId }
+        where: { id: +programId }
       });
 
       res.json({
@@ -388,7 +388,7 @@ export class ProgramController {
       // Check if program exists and belongs to user's organization
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: programId,
+          id: +programId,
           organizationId: organization.id
         }
       });
@@ -399,7 +399,7 @@ export class ProgramController {
       }
 
       const updatedProgram = await prisma.program.update({
-        where: { id: programId },
+        where: { id: +programId },
         data: { status },
         include: {
           organization: {
