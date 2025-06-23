@@ -1,8 +1,8 @@
 export interface AuditLogData {
-  userId: string
+  userId: number
   action: AuditAction
   entity: string
-  entityId: string
+  entityId: number
   details: string
   reportId?: string
   paymentId?: string

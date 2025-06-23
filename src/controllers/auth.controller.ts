@@ -5,12 +5,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { parseUserAgent, getGeoLocation } from '../utils/device';
-import {
-  loginSchema,
-  registerSchema,
-  refreshTokenSchema,
-  changePasswordSchema,
-} from '../schemas/auth.schemas';
+import {loginSchema } from '../schemas/auth.schemas';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -22,18 +17,14 @@ import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
-// Enhanced login function with session tracking
 export async function login(req: Request, res: Response) {
   try {
-    // Validate request body
     const validatedData = loginSchema.parse(req.body);
 
-    // Find user by email
     const user = await prisma.user.findUnique({
       where: { email: validatedData.email },
     });
 
-    // Check if user exists and is active
     if (!user || !user.isActive) {
       logger.warn(
         `Login attempt for non-existent or inactive user: ${validatedData.email}`
@@ -41,13 +32,11 @@ export async function login(req: Request, res: Response) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Check passwordHash is not null
     if (!user.passwordHash) {
       logger.warn(`User ${user.email} does not have a password hash set`);
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Check password
     const passwordMatch = await bcrypt.compare(
       validatedData.password,
       user.passwordHash
@@ -70,23 +59,20 @@ export async function login(req: Request, res: Response) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Update last login timestamp
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() },
     });
 
-    // Create session
     const sessionId = uuidv4();
     const userAgent = req.headers['user-agent'] || '';
     const ip = req.ip || req.connection?.remoteAddress || '';
     const location = await getGeoLocation(ip);
     const deviceInfo = parseUserAgent(userAgent);
 
-    // Save session to database
     const session = await prisma.session.create({
       data: {
-        id: sessionId,
+        id: +sessionId,
         userId: user.id,
         userAgent,
         deviceOS: deviceInfo.os,
@@ -99,7 +85,6 @@ export async function login(req: Request, res: Response) {
       },
     });
 
-    // Generate tokens with session ID
     const accessToken = generateAccessToken({
       id: user.id,
       email: user.email,
@@ -109,7 +94,6 @@ export async function login(req: Request, res: Response) {
 
     const { token: refreshToken } = await generateRefreshToken(user.id, session.id);
 
-    // Set refresh token as HTTP-only cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -117,7 +101,6 @@ export async function login(req: Request, res: Response) {
       maxAge: 7 * 24 * 60 * 60 * 1000, 
     });
 
-    // Create audit log for successful login
     await createAuditLog(
       {
         userId: user.id,
@@ -129,7 +112,6 @@ export async function login(req: Request, res: Response) {
       req
     );
 
-    // Return user data, tokens, and session info
     return res.status(200).json({
       user: {
         id: user.id,
@@ -155,17 +137,14 @@ export async function login(req: Request, res: Response) {
   }
 }
 
-// Update refreshToken function to validate sessions
 export async function refreshToken(req: Request, res: Response) {
   try {
-    // Get refresh token from cookie
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
       return res.status(401).json({ error: "Refresh token not found" });
     }
 
-    // Decode token to get user ID and session ID
     const decoded = jwt.decode(refreshToken) as {
       id: string;
       sessionId: string;
@@ -175,16 +154,14 @@ export async function refreshToken(req: Request, res: Response) {
       return res.status(401).json({ error: "Invalid refresh token" });
     }
 
-    // Verify session is still active
     const session = await prisma.session.findUnique({
-      where: { id: decoded.sessionId },
+      where: { id: +decoded.sessionId },
     });
 
     if (!session || !session.isActive || session.expiresAt < new Date()) {
       return res.status(401).json({ error: "Session expired or invalid" });
     }
 
-    // Verify refresh token
     const isValid = await verifyRefreshToken(refreshToken, decoded.id, decoded.sessionId);
 
     if (!isValid) {
@@ -192,9 +169,8 @@ export async function refreshToken(req: Request, res: Response) {
       return res.status(401).json({ error: "Invalid refresh token" });
     }
 
-    // Get user data
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: +decoded.id },
       select: { id: true, email: true, role: true, isActive: true },
     });
 
@@ -205,23 +181,20 @@ export async function refreshToken(req: Request, res: Response) {
       return res.status(401).json({ error: "User not found or inactive" });
     }
 
-    // Update session last seen
     await prisma.session.update({
-      where: { id: decoded.sessionId },
+      where: { id: +decoded.sessionId },
       data: { lastSeen: new Date() },
     });
 
-    // Generate new tokens with same session ID
     const accessToken = generateAccessToken({
       id: user.id,
       email: user.email,
       role: user.role,
-      sessionId: decoded.sessionId,
+      sessionId: +decoded.sessionId,
     });
 
-    const { token: newRefreshToken } = await generateRefreshToken(user.id, decoded.sessionId);
+    const { token: newRefreshToken } = await generateRefreshToken(user.id, +decoded.sessionId);
 
-    // Set new refresh token as HTTP-only cookie
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -229,7 +202,6 @@ export async function refreshToken(req: Request, res: Response) {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    // Create audit log
     await createAuditLog(
       {
         userId: user.id,
@@ -250,24 +222,19 @@ export async function refreshToken(req: Request, res: Response) {
   }
 }
 
-// Enhanced logout function to terminate sessions
 export async function logout(req: Request, res: Response) {
   try {
-    // Get user ID and session ID from authenticated request
     const userId = req.user?.id;
     const sessionId = req.user?.sessionId;
 
     if (userId && sessionId) {
-      // Invalidate session
       await prisma.session.update({
-        where: { id: sessionId },
+        where: { id: +sessionId },
         data: { isActive: false, expiresAt: new Date() },
       });
 
-      // Invalidate refresh token
-      await invalidateRefreshToken(userId, sessionId);
+      await invalidateRefreshToken(userId, +sessionId);
 
-      // Create audit log
       await createAuditLog(
         {
           userId,
@@ -280,7 +247,6 @@ export async function logout(req: Request, res: Response) {
       );
     }
 
-    // Clear refresh token cookie
     res.clearCookie("refreshToken");
 
     return res.status(200).json({ message: "Logged out successfully" });

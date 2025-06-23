@@ -21,10 +21,10 @@ interface AccessTokenPayload {
 
 // Updated function signature to accept an object
 export const generateAccessToken = (user: { 
-  id: string; 
+  id: number; 
   role: string; 
   email?: string;
-  sessionId?: string;  // Add sessionId
+  sessionId?: number;  // Add sessionId
 }): string => {
   try {
     const secret = config.JWT_SECRET;
@@ -168,7 +168,7 @@ export const verifyRefreshToken = async (token: string, userId: string, sessionI
 // TOKEN INVALIDATION
 // ============================================================================
 
-export const invalidateRefreshToken = async (userId: string, sessionId: string): Promise<void> => {
+export const invalidateRefreshToken = async (userId: number, sessionId: number): Promise<void> => {
   try {
     await prisma.user.update({
       where: { id: +userId },

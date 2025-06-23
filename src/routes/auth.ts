@@ -644,7 +644,7 @@ router.post("/logout", async (req: Request, res: Response): Promise<void> => {
       // Invalidate refresh token
       const { invalidateRefreshToken } = await import("../utils/token");
       // Pass empty string if sessionId is not available
-      await invalidateRefreshToken(userId, '');
+      await invalidateRefreshToken(+userId, 0);
     }
 
     // Clear refresh token cookie

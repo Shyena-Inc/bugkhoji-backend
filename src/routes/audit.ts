@@ -13,7 +13,7 @@ router.post('/test-audit', authenticate, authorize(['ADMIN']), async (req: Reque
       data: {
         action: AuditAction.CREATED,
         entityType: 'TEST',
-        entityId: 'test-123',
+        entityId: 1,
         performedById: req.user!.id,
         userId: req.user!.id,
         newData: {
