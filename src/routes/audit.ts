@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma'
 import { AuditAction } from '@prisma/client'
 import { authenticate, authorize } from '../middleware/auth'
 import { logger } from '../utils/logger'
+import { string } from 'joi'
 
 const router = Router()
 
@@ -13,7 +14,7 @@ router.post('/test-audit', authenticate, authorize(['ADMIN']), async (req: Reque
       data: {
         action: AuditAction.CREATED,
         entityType: 'TEST',
-        entityId: 1,
+        entityId: '1',
         performedById: req.user!.id,
         userId: req.user!.id,
         newData: {

@@ -24,6 +24,7 @@ const CORS_WHITELIST = [
   "http://localhost:4001",
   "https://bugkhoji.com",
   "https://www.bugkhoji.com",
+  "http://localhost:8080",
 ];
 
 app.use(helmet());
