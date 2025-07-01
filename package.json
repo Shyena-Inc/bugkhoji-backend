@@ -13,7 +13,7 @@
     "security:audit": "npm audit"
   },
   "dependencies": {
-    "@prisma/client": "^6.9.0",
+    "@prisma/client": "^6.11.0",
     "@types/node-mailjet": "^3.3.12",
     "axios": "^1.9.0",
     "bcrypt": "^6.0.0",
@@ -45,6 +45,7 @@
     "@types/node": "^22.15.30",
     "@types/ua-parser-js": "^0.7.39",
     "@types/uuid": "^10.0.0",
+    "prisma": "^6.11.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }

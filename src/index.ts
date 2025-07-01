@@ -18,7 +18,7 @@ import OrgRoutes from './routes/organization'
 import ReportsRoute from './routes/reports'
 import { connectDB, disconnectDB } from "./database/database";
 import healthRoutes from './routes/health'
-
+import userRoutes from './routes/user'
 const app: Express = express();
 const CORS_WHITELIST = [
   "http://localhost:4001",
@@ -55,6 +55,8 @@ app.use("/api/v1/organization",OrgRoutes);
 app.use("/api/v1/reports",ReportsRoute);
 app.use("/api", OtpRoutes);
 app.use('/api', healthRoutes);
+app.use('/api/user', userRoutes);
+
 
 app.use((err: any, req: Request, res: Response, next: NextFunction): void => {
   logger.error(`${err.message} - ${req.method} ${req.originalUrl} - ${req.ip}`);

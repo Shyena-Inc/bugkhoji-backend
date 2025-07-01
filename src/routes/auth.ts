@@ -19,6 +19,7 @@ import {
   type RegisterInput,
   type OrganizationRegisterInput
 } from "../schemas/auth.schemas";
+import { refreshToken } from "src/controllers/auth.controller";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -263,7 +264,7 @@ router.post(
       res.status(201).json({
         message:
           "Registration successful. Please wait for admin approval to activate your account.",
-        userId: user.id, // Only return non-sensitive identifier if needed
+        userId: user.id, 
       });
     } catch (err) {
       // Handle specific Prisma errors
