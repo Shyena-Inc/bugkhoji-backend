@@ -22,7 +22,8 @@ model User {
   lastName     String?
   passwordHash String?
   isActive     Boolean  @default(true)
-  
+  termsAccepted  Boolean @default(false)
+  termsAcceptedAt  DateTime?
   // Authentication & Session Management
   lastLogin             DateTime?
   refreshTokenHash      String?

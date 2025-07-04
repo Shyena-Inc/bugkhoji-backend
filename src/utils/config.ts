@@ -8,7 +8,7 @@ export const config = {
   DATABASE_URL: `postgresql://${process.env.DATABASE_USER}:${process.env.DATABASE_PASSWORD}@${process.env.DATABASE_HOST}:5432/${process.env.DATABASE_NAME}?connect_timeout=10&sslmode=require`,
 
   // JWT
-  JWT_SECRET: process.env.JWT_SECRET,
+  JWT_SECRET: process.env.JWT_SECRET as string,
   JWT_ACCESS_EXPIRE: process.env.JWT_ACCESS_EXPIRE || "15m",
   JWT_REFRESH_EXPIRE: process.env.JWT_REFRESH_EXPIRE || "7d",
 

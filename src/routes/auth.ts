@@ -432,11 +432,6 @@ router.post(
         return;
       }
 
-      // TODO: Implement MFA check for admin accounts
-      // if (user.mfaEnabled) {
-      //   // Handle MFA verification
-      // }
-
       // Handle successful login
       await handleLoginSuccess(
         {
