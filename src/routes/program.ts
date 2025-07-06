@@ -2,11 +2,11 @@
 import { Router } from "express";
 import { requireActiveOrganization, requireOrganizationOrAdmin } from "../middleware/auth";
 import authenticate from "../middleware/authenticate";
-import { 
-  validateProgramData, 
-  validateProgramStatus, 
-  validateDateRange, 
-  validateRewards 
+import {
+  validateProgramData,
+  validateProgramStatus,
+  validateDateRange,
+  validateRewards
 } from "../middleware/programValidate";
 import { ProgramController } from "../controllers/program.controller";
 
@@ -15,7 +15,7 @@ const router = Router();
 // Apply authentication to all routes
 router.use(authenticate);
 
-// Existing routes
+// Existing org-only routes
 router.get("/org-profile", requireActiveOrganization, (req, res) => {
   res.json({ message: "Organization profile access granted", user: req.user });
 });
@@ -24,11 +24,10 @@ router.get("/manage-programs", requireOrganizationOrAdmin, (req, res) => {
   res.json({ message: "Manage programs access granted", user: req.user });
 });
 
-// Program management routes with clean middleware chain
 router.post(
   "/programs",
   requireActiveOrganization,
-  validateProgramData,  
+  validateProgramData,
   validateRewards,
   validateDateRange,
   ProgramController.createProgram
@@ -64,6 +63,18 @@ router.patch(
   requireActiveOrganization,
   validateProgramStatus,
   ProgramController.updateProgramStatus
+);
+
+// ==== New researcher read-only routes ====
+// No org ownership required, just authenticated
+router.get(
+  "/researcher/programs",
+  ProgramController.getAllProgramsForResearchers
+);
+
+router.get(
+  "/researcher/programs/:id",
+  ProgramController.getProgramByIdForResearchers
 );
 
 export default router;

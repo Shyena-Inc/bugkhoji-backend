@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 export class ProgramController {
   
-  // Create a new program
+  // Create a new program (organization only)
   static async createProgram(req: Request, res: Response): Promise<void> {
     try {
       const {
@@ -24,13 +24,11 @@ export class ProgramController {
         status = "DRAFT"
       } = req.body;
 
-      // Ensure user has an organization
       if (!req.user?.id) {
         res.status(401).json({ message: "Authentication required" });
         return;
       }
 
-      // Get the organization for this user
       const organization = await prisma.organization.findUnique({
         where: { userId: req.user.id }
       });
@@ -79,7 +77,7 @@ export class ProgramController {
     }
   }
 
-  // Get all programs for organization
+  // Get all programs for organization (owner only)
   static async getPrograms(req: Request, res: Response): Promise<void> {
     try {
       if (!req.user?.id) {
@@ -87,7 +85,6 @@ export class ProgramController {
         return;
       }
 
-      // Get the organization for this user
       const organization = await prisma.organization.findUnique({
         where: { userId: req.user.id }
       });
@@ -133,7 +130,7 @@ export class ProgramController {
     }
   }
 
-  // Get program by ID
+  // Get program by ID (owner only)
   static async getProgramById(req: Request, res: Response): Promise<void> {
     try {
       const programId = req.params.id;
@@ -143,7 +140,6 @@ export class ProgramController {
         return;
       }
 
-      // Get the organization for this user
       const organization = await prisma.organization.findUnique({
         where: { userId: req.user.id }
       });
@@ -156,7 +152,7 @@ export class ProgramController {
       const program = await prisma.program.findFirst({
         where: {
           id: +programId,
-          organizationId: organization.id // Ensure ownership
+          organizationId: organization.id
         },
         include: {
           organization: {
@@ -217,7 +213,7 @@ export class ProgramController {
     }
   }
 
-  // Update program
+  // Update program (owner only)
   static async updateProgram(req: Request, res: Response): Promise<void> {
     try {
       const programId = req.params.id;
@@ -241,7 +237,6 @@ export class ProgramController {
         return;
       }
 
-      // Get the organization for this user
       const organization = await prisma.organization.findUnique({
         where: { userId: req.user.id }
       });
@@ -251,7 +246,6 @@ export class ProgramController {
         return;
       }
 
-      // Check if program exists and belongs to user's organization
       const existingProgram = await prisma.program.findFirst({
         where: {
           id: +programId,
@@ -264,7 +258,6 @@ export class ProgramController {
         return;
       }
 
-      // Build update data object, only including provided fields
       const updateData: any = {};
       if (title !== undefined) updateData.title = title;
       if (description !== undefined) updateData.description = description;
@@ -305,7 +298,7 @@ export class ProgramController {
     }
   }
 
-  // Delete program
+  // Delete program (owner only)
   static async deleteProgram(req: Request, res: Response): Promise<void> {
     try {
       const programId = req.params.id;
@@ -315,7 +308,6 @@ export class ProgramController {
         return;
       }
 
-      // Get the organization for this user
       const organization = await prisma.organization.findUnique({
         where: { userId: req.user.id }
       });
@@ -325,7 +317,6 @@ export class ProgramController {
         return;
       }
 
-      // Check if program exists and belongs to user's organization
       const existingProgram = await prisma.program.findFirst({
         where: {
           id: +programId,
@@ -354,7 +345,7 @@ export class ProgramController {
     }
   }
 
-  // Update program status
+  // Update program status (owner only)
   static async updateProgramStatus(req: Request, res: Response): Promise<void> {
     try {
       const programId = req.params.id;
@@ -365,7 +356,6 @@ export class ProgramController {
         return;
       }
 
-      // Validate status
       const validStatuses = ['DRAFT', 'ACTIVE', 'PAUSED', 'CLOSED'];
       if (!validStatuses.includes(status)) {
         res.status(400).json({ 
@@ -375,7 +365,6 @@ export class ProgramController {
         return;
       }
 
-      // Get the organization for this user
       const organization = await prisma.organization.findUnique({
         where: { userId: req.user.id }
       });
@@ -385,7 +374,6 @@ export class ProgramController {
         return;
       }
 
-      // Check if program exists and belongs to user's organization
       const existingProgram = await prisma.program.findFirst({
         where: {
           id: +programId,
@@ -419,6 +407,125 @@ export class ProgramController {
       console.error("Error updating program status:", error);
       res.status(500).json({ 
         message: "Failed to update program status", 
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  // ============================
+  // NEW methods for researchers
+  // ============================
+
+  // Researchers: Get all programs (no ownership restriction)
+  static async getAllProgramsForResearchers(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.user?.id) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+
+      const programs = await prisma.program.findMany({
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              website: true,
+              // email: true
+            }
+          },
+          _count: {
+            select: {
+              submissions: true,
+              reports: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: "desc"
+        }
+      });
+
+      res.json({
+        message: "Programs retrieved successfully",
+        programs
+      });
+    } catch (error) {
+      console.error("Error retrieving programs for researchers:", error);
+      res.status(500).json({
+        message: "Failed to retrieve programs",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  // Researchers: Get program by ID (no ownership restriction)
+  static async getProgramByIdForResearchers(req: Request, res: Response): Promise<void> {
+    try {
+      const programId = req.params.id;
+
+      if (!req.user?.id) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+
+      const program = await prisma.program.findUnique({
+        where: { id: +programId },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              website: true,
+              // email: true
+            }
+          },
+          submissions: {
+            select: {
+              id: true,
+              title: true,
+              severity: true,
+              status: true,
+              researcherEmail: true,
+              researcherName: true,
+              createdAt: true
+            },
+            orderBy: {
+              createdAt: 'desc'
+            }
+          },
+          reports: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              type: true,
+              priority: true,
+              createdAt: true
+            }
+          },
+          _count: {
+            select: {
+              submissions: true,
+              reports: true
+            }
+          }
+        }
+      });
+
+      if (!program) {
+        res.status(404).json({ message: "Program not found" });
+        return;
+      }
+
+      res.json({
+        message: "Program retrieved successfully",
+        program
+      });
+    } catch (error) {
+      console.error("Error retrieving program by ID for researchers:", error);
+      res.status(500).json({
+        message: "Failed to retrieve program",
         error: error instanceof Error ? error.message : String(error)
       });
     }

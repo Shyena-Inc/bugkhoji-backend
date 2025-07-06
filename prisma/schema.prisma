@@ -130,7 +130,7 @@ model AuditLog {
   id         Int      @id @default(autoincrement())
   action     AuditAction
   entityType String // e.g., "User", "Program", "Organization", etc.
-  entityId   String // ID of the affected record
+  entityId   Int // ID of the affected record
   oldData    Json? // Previous state (if applicable)
   newData    Json? // New state (if applicable)
 

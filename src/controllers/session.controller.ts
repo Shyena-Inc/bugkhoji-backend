@@ -43,15 +43,14 @@ export async function createSession(req: Request, userId: string) {
     throw error;
   }
 }
-
-export async function getSessions(req: Request, res: Response) {
+export async function getSessions(req: Request, res: Response): Promise<void> {
   try {
-    // Check if user exists in request
     if (!req.user) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         success: false,
         error: 'Authentication required' 
       });
+      return;
     }
 
     const sessions = await prisma.session.findMany({
@@ -75,15 +74,17 @@ export async function getSessions(req: Request, res: Response) {
         lastSeen: 'desc'
       }
     });
+    
 
-    // Add more detailed response
     res.json({
       success: true,
       count: sessions.length,
       sessions: sessions,
-      message: sessions.length ? 'Sessions retrieved successfully' : 'No active sessions found'
+      message: sessions.length
+        ? 'Sessions retrieved successfully'
+        : 'No active sessions found'
     });
-    
+
   } catch (error) {
     logger.error('Error fetching sessions:', error);
     res.status(500).json({ 

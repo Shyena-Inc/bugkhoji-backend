@@ -19,7 +19,7 @@ const getUserProfile = async (req: Request, res: Response): Promise<any> => {
       select: {
         id: true,
         email: true,
-        name: true,
+        username: true,
         role: true,
       
       }

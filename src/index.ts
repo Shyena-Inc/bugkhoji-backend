@@ -4,6 +4,7 @@ import express, {
   Response,
   NextFunction,
 } from "express";
+import cookieParser from 'cookie-parser';
 import { config } from "./utils/config";
 import authRoutes from "./routes/auth";
 import cors from "cors";
@@ -14,7 +15,7 @@ import { seedAdmin } from "./utils/adminSeeder";
 import auditRoutes from "./routes/audit";
 import OtpRoutes from './routes/otp'
 import AdminRoutes from './routes/admin'
-import OrgRoutes from './routes/organization'
+import OrgRoutes from './routes/program'
 import ReportsRoute from './routes/reports'
 import { connectDB, disconnectDB } from "./database/database";
 import healthRoutes from './routes/health'
@@ -46,12 +47,13 @@ app.use(
 );
 
 app.use(express.json());
+app.use(cookieParser());
 app.use("/v1", authRoutes);
 app.use("/login/researcher", rateLimiting);
 app.use("/login/admin", rateLimiting);
 app.use("/api/audit", auditRoutes);
 app.use("/api/v1/admin/", AdminRoutes);
-app.use("/api/v1/organization",OrgRoutes);
+app.use("/api/v1/",OrgRoutes);
 app.use("/api/v1/reports",ReportsRoute);
 app.use("/api", OtpRoutes);
 app.use('/api', healthRoutes);

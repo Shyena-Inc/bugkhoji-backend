@@ -1,28 +1,23 @@
-import { Router, type Request, type Response } from "express";
-import bcrypt from "bcryptjs";
-import jwt, { type Secret, type SignOptions } from "jsonwebtoken";
-import { PrismaClient, UserRole } from "@prisma/client";
+import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { logger } from "../utils/logger";
 import { validate } from "../middleware/validate";
-import { config } from "../utils/config";
-import { generateRefreshToken } from "../utils/token";
-import { getSessions } from "../controllers/session.controller";
 import { authenticate } from "../middleware/auth";
 import { rateLimiting } from "../middleware/ratelimiter";
-
+import { getSessions } from "../controllers/session.controller";
+import {
+  registerResearcher,
+  registerOrganization,
+  login,
+  refreshToken,
+  logout,
+} from "../controllers/auth.controller";
 import {
   loginSchema,
   registerSchema,
   organizationRegisterSchema,
-  type LoginInput,
-  type RegisterInput,
-  type OrganizationRegisterInput
 } from "../schemas/auth.schemas";
-import { refreshToken } from "src/controllers/auth.controller";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // ============================================================================
 // RATE LIMITING CONFIGURATION
@@ -43,85 +38,7 @@ const authLimiter = rateLimit({
 });
 
 // ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-const generateToken = (id: number, role: string): string => {
-  const secret = config.JWT_SECRET;
-
-  if (!secret) {
-    throw new Error("JWT_SECRET not defined");
-  }
-
-  const expiresIn = process.env.JWT_ACCESS_EXPIRE || "15m";
-  const payload = { id, role };
-  const options: SignOptions = {
-    expiresIn: expiresIn as SignOptions["expiresIn"],
-  };
-
-  return jwt.sign(payload, secret as Secret, options);
-};
-
-const setRefreshTokenCookie = (res: Response, refreshToken: string): void => {
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
-};
-
-interface UserLoginData {
-  id: number;
-  email: string;
-  passwordHash: string;
-  role: string;
-  isActive: boolean;
-  username: string;
-  firstName: string;
-  lastName: string;
-}
-
-const handleLoginSuccess = async (
-  user: UserLoginData,
-  res: Response
-): Promise<void> => {
-  // Update last login timestamp
-  try {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLogin: new Date(),
-      },
-    });
-  } catch (updateError) {
-    // Log the error but don't fail the login process
-    logger.warn(`Failed to update lastLogin for user ${user.id}:`, updateError);
-  }
-
-  // Generate tokens
-  const accessToken = generateToken(user.id, user.role);
-  const { token: refreshToken } = await generateRefreshToken(user.id,undefined);
-
-  // Set refresh token cookie
-  setRefreshTokenCookie(res, refreshToken);
-
-  // Return success response
-  res.json({
-    token: accessToken,
-    user: {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-    },
-  });
-};
-
-// ============================================================================
-// REGISTRATION ENDPOINTS
+// REGISTRATION ROUTES
 // ============================================================================
 
 /**
@@ -131,58 +48,7 @@ router.post(
   "/register/researcher",
   authLimiter,
   validate(registerSchema),
-  async (req: Request<{}, {}, RegisterInput>, res: Response): Promise<void> => {
-    try {
-      const { email, password, username, firstName, lastName } = req.body;
-
-      logger.info(`Registration attempt for email: ${email}`);
-
-      // Validate request body exists
-      if (!req.body) {
-        logger.error("Request body is missing");
-        res.status(400).json({ error: "Request body is required" });
-        return;
-      }
-
-      // Check if email or username already exists
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [{ email }, { username }],
-        },
-      });
-
-      if (existingUser) {
-        const conflictField =
-          existingUser.email === email ? "Email" : "Username";
-        logger.warn(
-          `Registration failed: ${conflictField} already exists for ${email}`
-        );
-        res.status(409).json({ message: `${conflictField} already exists` });
-        return;
-      }
-
-      // Hash password with high salt rounds
-      const passwordHash = await bcrypt.hash(password, 12);
-
-      // Create new researcher user
-      const user = await prisma.user.create({
-        data: {
-          email,
-          passwordHash,
-          username,
-          firstName,
-          lastName,
-          role: UserRole.RESEARCHER,
-        },
-      });
-
-      logger.info(`Researcher registration successful for user: ${user.id}`);
-      res.status(201).json({ message: "Registration successful" });
-    } catch (err) {
-      logger.error("Server error during researcher registration:", err);
-      res.status(500).json({ message: "Server error during registration" });
-    }
-  }
+  registerResearcher
 );
 
 /**
@@ -192,106 +58,11 @@ router.post(
   "/register/organization",
   authLimiter,
   validate(organizationRegisterSchema),
-  async (req: Request<{}, {}, OrganizationRegisterInput>, res: Response): Promise<void> => {
-    try {
-      const { email, password, organizationName, website, description } =
-        req.body;
-
-      logger.info(`Organization registration attempt for: ${organizationName}`);
-
-      // Check if organization email already exists
-      const existingOrg = await prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (existingOrg) {
-        logger.warn(`Registration failed: Email already exists for ${email}`);
-        res.status(409).json({ message: "Email already exists" });
-        return;
-      }
-
-      // Generate username and check for conflicts
-      let baseUsername = organizationName
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "_") // Replace non-alphanumeric with underscore
-        .replace(/_+/g, "_") // Replace multiple underscores with single
-        .replace(/^_+|_+$/g, "") // Remove leading/trailing underscores
-        .substring(0, 30); // Limit length
-
-      let username = baseUsername;
-      let counter = 1;
-
-      // Ensure username uniqueness
-      while (await prisma.user.findUnique({ where: { username } })) {
-        username = `${baseUsername}_${counter}`;
-        counter++;
-      }
-
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 12);
-
-      // Create new organization user with transaction
-      const user = await prisma.$transaction(async (tx: any) => {
-        return await tx.user.create({
-          data: {
-            email,
-            passwordHash,
-            username,
-            firstName: organizationName,
-            lastName: "",
-            role: "ORGANIZATION",
-            isActive: false, // Organizations need admin approval
-            organization: {
-              create: {
-                name: organizationName,
-                website: website || null,
-                description: description || null,
-              },
-            },
-          },
-          include: {
-            organization: true,
-          },
-        });
-      });
-
-      // Don't log sensitive data in production
-      logger.info(
-        `Organization registration successful for user ID: ${user.id}`
-      );
-
-      // Don't return sensitive user data
-      res.status(201).json({
-        message:
-          "Registration successful. Please wait for admin approval to activate your account.",
-        userId: user.id, 
-      });
-    } catch (err) {
-      // Handle specific Prisma errors
-      if (err instanceof Error) {
-        if (err.message.includes("Unique constraint")) {
-          logger.warn(
-            `Registration failed: Duplicate data for ${req.body.organizationName}`
-          );
-          res.status(409).json({
-            message: "Registration data conflicts with existing account",
-          });
-          return;
-        }
-      }
-
-      logger.error("Server error during organization registration:", {
-        error: err instanceof Error ? err.message : "Unknown error",
-        organizationName: req.body.organizationName,
-        email: req.body.email,
-      });
-      res.status(500).json({ message: "Server error during registration" });
-    }
-  }
+  registerOrganization
 );
 
 // ============================================================================
-// LOGIN ENDPOINTS
+// LOGIN ROUTES
 // ============================================================================
 
 /**
@@ -301,78 +72,9 @@ router.post(
   "/login/researcher",
   authLimiter,
   validate(loginSchema),
-  async (req: Request<{}, {}, LoginInput>, res: Response): Promise<void> => {
-    try {
-      const { email, password } = req.body;
-
-      logger.info(`Login attempt for researcher email: ${email}`);
-
-      // Find user by email
-      const user = await prisma.user.findUnique({
-        where: { email },
-        select: {
-          id: true,
-          email: true,
-          passwordHash: true,
-          role: true,
-          isActive: true,
-          username: true,
-          firstName: true,
-          lastName: true,
-        },
-      });
-
-      // **NULL CHECK**: Ensure user exists
-      if (!user) {
-        logger.warn(
-          `Failed login attempt for researcher email: ${email} - User not found`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      // Check if user is a researcher and is active
-      if (user.role !== "RESEARCHER" || !user.isActive) {
-        logger.warn(
-          `Failed login attempt for researcher email: ${email} - Invalid role or inactive account`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      // Verify password
-      if (!user.passwordHash) {
-        logger.warn(
-          `Failed login attempt for researcher: ${user.email} - No password hash found`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash ?? "");
-      if (!passwordMatch) {
-        logger.warn(
-          `Failed login attempt for researcher: ${user.email} - Invalid password`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      // Handle successful login
-      await handleLoginSuccess(
-        {
-          ...user,
-          passwordHash: user.passwordHash ?? "",
-          username: user.username ?? "",
-          firstName: user.firstName ?? "",
-          lastName: user.lastName ?? "",
-        },
-        res
-      );
-      logger.info(`Successful researcher login for user: ${user.id}`);
-    } catch (err) {
-      logger.error("Researcher login error:", err);
-      res.status(500).json({ message: "Server error during login" });
-    }
+  (req, res) => {
+    req.body.userType = "RESEARCHER";
+    login(req, res);
   }
 );
 
@@ -383,71 +85,9 @@ router.post(
   "/login/admin",
   authLimiter,
   validate(loginSchema),
-  async (req: Request<{}, {}, LoginInput>, res: Response): Promise<void> => {
-    try {
-      const { email, password } = req.body;
-
-      logger.info(`Login attempt for admin email: ${email}`);
-
-      // Find user by email
-      const user = await prisma.user.findUnique({
-        where: { email },
-        select: {
-          id: true,
-          email: true,
-          passwordHash: true,
-          role: true,
-          isActive: true,
-          username: true,
-          firstName: true,
-          lastName: true,
-        },
-      });
-
-      // **NULL CHECK**: Ensure user exists
-      if (!user) {
-        logger.warn(
-          `Failed login attempt for admin email: ${email} - User not found`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      // Check if user is an admin and is active
-      if (user.role !== "ADMIN" || !user.isActive) {
-        logger.warn(
-          `Failed login attempt for admin email: ${email} - Invalid role or inactive account`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      // Verify password
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash ?? "");
-      if (!passwordMatch) {
-        logger.warn(
-          `Failed login attempt for admin: ${user.email} - Invalid password`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      // Handle successful login
-      await handleLoginSuccess(
-        {
-          ...user,
-          passwordHash: user.passwordHash ?? "",
-          username: user.username ?? "",
-          firstName: user.firstName ?? "",
-          lastName: user.lastName ?? "",
-        },
-        res
-      );
-      logger.info(`Successful admin login for user: ${user.id}`);
-    } catch (err) {
-      logger.error("Admin login error:", err);
-      res.status(500).json({ message: "Server error during login" });
-    }
+  (req, res) => {
+    req.body.userType = "ADMIN";
+    login(req, res);
   }
 );
 
@@ -458,222 +98,52 @@ router.post(
   "/login/organization",
   authLimiter,
   validate(loginSchema),
-  async (req: Request<{}, {}, LoginInput>, res: Response): Promise<void> => {
-    try {
-      const { email, password } = req.body;
-
-      logger.info(`Login attempt for organization email: ${email}`);
-
-      // Find organization by email
-      const user = await prisma.user.findUnique({
-        where: { email },
-        select: {
-          id: true,
-          email: true,
-          passwordHash: true,
-          role: true,
-          isActive: true,
-          username: true,
-          firstName: true,
-          lastName: true,
-        },
-      });
-
-      // Ensure organization exists
-      if (!user) {
-        logger.warn(
-          `Failed login attempt for organization email: ${email} - Organization not found`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      // Check if user is an organization and is active
-      if (user.role !== ("ORGANIZATION" as typeof user.role)) {
-        logger.warn(
-          `Failed login attempt for email: ${email} - Not an organization account`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      if (!user.isActive) {
-        logger.warn(
-          `Failed login attempt for organization: ${email} - Account not activated`
-        );
-        res.status(401).json({
-          message:
-            `Account pending activation. Please wait for admin approval.  `
-        });
-        return;
-      }
-
-      // Verify password
-      if (!user.passwordHash) {
-        logger.warn(
-          `Failed login attempt for organization: ${user.email} - No password hash found`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-      if (!passwordMatch) {
-        logger.warn(
-          `Failed login attempt for organization: ${user.email} - Invalid password`
-        );
-        res.status(401).json({ message: "Invalid email or password" });
-        return;
-      }
-
-      // Handle successful login
-      await handleLoginSuccess(
-        {
-          ...user,
-          passwordHash: user.passwordHash, // now guaranteed to be string
-          username: user.username ?? "",
-          firstName: user.firstName ?? "",
-          lastName: user.lastName ?? "",
-        },
-        res
-      );
-      logger.info(`Successful organization login for: ${user.id}`);
-    } catch (err) {
-      logger.error("Organization login error:", err);
-      res.status(500).json({ message: "Server error during login" });
-    }
+  (req, res) => {
+    req.body.userType = "ORGANIZATION";
+    login(req, res);
   }
 );
 
 // ============================================================================
-// TOKEN MANAGEMENT ENDPOINTS
+// TOKEN MANAGEMENT ROUTES
 // ============================================================================
 
 /**
- * 🔐 Refresh Token Endpoint
+ * 🔐 Refresh Token
  */
-router.post("/refresh", async (req: Request, res: Response): Promise<void> => {
-  try {
-    // Get refresh token from cookie
-    const refreshToken = req.cookies.refreshToken;
-
-    if (!refreshToken) {
-      res.status(401).json({ error: "Refresh token not found" });
-      return;
-    }
-
-    // Decode token to get user ID
-    const decoded = jwt.decode(refreshToken) as { id: string; } | null;
-
-    if (!decoded || !decoded.id) {
-      res.status(401).json({ error: "Invalid refresh token" });
-      return;
-    }
-
-    // Verify refresh token
-    const { verifyRefreshToken } = await import("../utils/token");
-    const sessionId = (decoded as any)?.sessionId || ""; // fallback to empty string if not present
-    const isValid = await verifyRefreshToken(refreshToken, decoded.id, sessionId);
-
-    if (!isValid) {
-      logger.warn(`Invalid refresh token used for user ID: ${decoded.id}`);
-      res.status(401).json({ error: "Invalid refresh token" });
-      return;
-    }
-
-    // Get user data
-    const user = await prisma.user.findUnique({
-      where: { id: +decoded.id },
-      select: { id: true, email: true, role: true, isActive: true },
-    });
-
-    // **NULL CHECK**: Ensure user exists and is active
-    if (!user) {
-      logger.warn(`Refresh token used for non-existent user: ${decoded.id}`);
-      res.status(401).json({ error: "User not found" });
-      return;
-    }
-
-    if (!user.isActive) {
-      logger.warn(`Refresh token used for inactive user: ${decoded.id}`);
-      res.status(401).json({ error: "User account is inactive" });
-      return;
-    }
-
-    // Generate new tokens
-    const accessToken = generateToken(user.id, user.role);
-    // Use the previously extracted sessionId
-    const { token: newRefreshToken } = await generateRefreshToken(+user.id, sessionId);
-
-    // Set new refresh token cookie
-    setRefreshTokenCookie(res, newRefreshToken);
-
-    res.json({ token: accessToken });
-  } catch (error) {
-    logger.error("Token refresh error:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+router.post("/refresh", refreshToken);
 
 /**
- * 🔐 Logout Endpoint
+ * 🔐 Logout
  */
-router.post("/logout", async (req: Request, res: Response): Promise<void> => {
+router.post("/logout", authenticate, logout);
+
+// ============================================================================
+// SESSION MANAGEMENT ROUTES
+// ============================================================================
+
+/**
+ * 🔐 Get User Sessions
+ */
+router.get("/sessions", rateLimiting, authenticate, getSessions);
+
+// ============================================================================
+// PLACEHOLDER ROUTES
+// ============================================================================
+
+/**
+ * 📧 Email Opt-in/out (placeholder)
+ */
+router.post("/mail-opt", async (req, res) => {
   try {
-    // Get user ID from token if available
-    const authHeader = req.headers.authorization;
-    let userId: string | null = null;
-
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      try {
-        const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(token, config.JWT_SECRET as string) as {
-          id: string;
-        };
-        userId = decoded.id;
-      } catch (error) {
-        // Token might be expired, but we still want to clear cookies
-        logger.warn("Invalid token during logout:", error);
-      }
-    }
-
-    if (userId) {
-      // Invalidate refresh token
-      const { invalidateRefreshToken } = await import("../utils/token");
-      // Pass empty string if sessionId is not available
-      await invalidateRefreshToken(+userId, 0);
-    }
-
-    // Clear refresh token cookie
-    res.clearCookie("refreshToken");
-    res.json({ message: "Logged out successfully" });
+    // TODO: Implement email opt-in/out logic in controller
+    res.status(200).json({ message: "Email preferences updated" });
   } catch (error) {
-    logger.error("Logout error:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.get("/sessions", rateLimiting, authenticate, async (req: Request, res: Response) => {
-  try {
-    await getSessions(req, res);
-  } catch (error) {
-    logger.error('Error in sessions route:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: "Internal Server Error"
     });
   }
 });
-
-router.post("/mail-opt", async(req: Request,res: Response)=>{
-try{
-  // await 
-  res.status(200).send("Hello")
-}catch(error){
-  res.status(500).json({
-    success: false,
-    error:"INternal Server Error"
-  })
-}
-})
 
 export default router;
