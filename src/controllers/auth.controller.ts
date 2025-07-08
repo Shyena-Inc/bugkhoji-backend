@@ -28,12 +28,22 @@ const prisma = new PrismaClient();
 
 const setRefreshTokenCookie = (res: Response, refreshToken: string): void => {
   res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
+    httpOnly: false,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: false,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };
+
+export function setAccessTokenCookie(res: Response, token: string): void {
+  res.cookie('accessToken', token, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: false,
+    maxAge: 15 * 60 * 1000, // 15 minutes (access tokens should have shorter expiry)
+    path: '/',
+  });
+}
 
 const handleLoginSuccess = async (
   user: any,
@@ -83,6 +93,8 @@ const handleLoginSuccess = async (
 
     // Set refresh token cookie
     setRefreshTokenCookie(res, refreshToken);
+    setAccessTokenCookie(res, accessToken);
+
 
     // Create audit log for successful login
     await createAuditLog(
@@ -398,6 +410,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 // ============================================================================
 
 export async function refreshToken(req: Request, res: Response): Promise<void> {
+  
   try {
     // Check if cookies exist and extract refresh token
     const refreshToken = req.cookies?.refreshToken;
@@ -527,8 +540,9 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
 
     const { token: newRefreshToken } = await generateRefreshToken(user.id, sessionId);
 
-    // Set new refresh token cookie
+    // Set both tokens as cookies
     setRefreshTokenCookie(res, newRefreshToken);
+    setAccessTokenCookie(res, accessToken); // ADD THIS LINE
 
     // Create audit log
     await createAuditLog(

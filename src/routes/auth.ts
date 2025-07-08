@@ -4,6 +4,7 @@ import { validate } from "../middleware/validate";
 import { authenticate } from "../middleware/auth";
 import { rateLimiting } from "../middleware/ratelimiter";
 import { getSessions } from "../controllers/session.controller";
+import { authenticateToken } from "../middleware/authenticateToken";
 import {
   registerResearcher,
   registerOrganization,
@@ -111,7 +112,7 @@ router.post(
 /**
  * 🔐 Refresh Token
  */
-router.post("/refresh", refreshToken);
+router.post("/refresh",authenticateToken, refreshToken);
 
 /**
  * 🔐 Logout
