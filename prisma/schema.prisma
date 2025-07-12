@@ -79,7 +79,7 @@ model Program {
   description          String
   websiteName          String
   websiteUrls          String[] 
-  scope                String
+  scope                String[]
   outOfScope           String?
   rewards              Json     
   submissionGuidelines String?
