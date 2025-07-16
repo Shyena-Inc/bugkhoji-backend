@@ -1,6 +1,6 @@
 import express from "express";
 import reportController from "../controllers/report.controller";
-import { authenticate } from "../middleware/auth";
+import authenticate from "../middleware/authenticate";
 import { validate,validateQuery } from "../middleware/validate"; // Fixed path (removed 'src')
 import {
   createReportSchema,

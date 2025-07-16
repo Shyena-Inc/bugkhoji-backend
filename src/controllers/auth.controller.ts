@@ -542,7 +542,7 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
 
     // Set both tokens as cookies
     setRefreshTokenCookie(res, newRefreshToken);
-    setAccessTokenCookie(res, accessToken); // ADD THIS LINE
+    setAccessTokenCookie(res, accessToken); 
 
     // Create audit log
     await createAuditLog(
