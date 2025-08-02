@@ -1,12 +1,11 @@
 // services/programService.ts
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 export class ProgramService {
-  
   // Create a new program
-  static async createProgram(organizationId: string, programData: any) {
+  static async createProgram(organizationId: number, programData: any) {
     try {
       const program = await prisma.program.create({
         data: {
@@ -20,9 +19,11 @@ export class ProgramService {
           rewards: programData.rewards,
           submissionGuidelines: programData.submission_guidelines,
           disclosurePolicy: programData.disclosure_policy,
-          startDate: programData.start_date ? new Date(programData.start_date) : null,
+          startDate: programData.start_date
+            ? new Date(programData.start_date)
+            : null,
           endDate: programData.end_date ? new Date(programData.end_date) : null,
-          status: programData.status || 'DRAFT',
+          status: programData.status || "DRAFT",
         },
       });
       return program;
@@ -30,19 +31,19 @@ export class ProgramService {
       if (error instanceof Error) {
         throw new Error(`Failed to create program: ${error.message}`);
       }
-      throw new Error('Failed to create program: Unknown error');
+      throw new Error("Failed to create program: Unknown error");
     }
   }
 
   // Get all programs for an organization
-  static async getProgramsByOrganization(organizationId: string) {
+  static async getProgramsByOrganization(organizationId: number) {
     try {
       const programs = await prisma.program.findMany({
         where: {
           organizationId,
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         select: {
           id: true,
@@ -59,12 +60,12 @@ export class ProgramService {
       if (error instanceof Error) {
         throw new Error(`Failed to fetch programs: ${error.message}`);
       }
-      throw new Error('Failed to fetch programs: Unknown error');
+      throw new Error("Failed to fetch programs: Unknown error");
     }
   }
 
   // Get a single program by ID (with ownership check)
-  static async getProgramById(programId: string, organizationId: string) {
+  static async getProgramById(programId: number, organizationId: number) {
     try {
       const program = await prisma.program.findFirst({
         where: {
@@ -72,22 +73,26 @@ export class ProgramService {
           organizationId,
         },
       });
-      
+
       if (!program) {
-        throw new Error('Program not found or access denied');
+        throw new Error("Program not found or access denied");
       }
-      
+
       return program;
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Failed to fetch program: ${error.message}`);
       }
-      throw new Error('Failed to fetch program: Unknown error');
+      throw new Error("Failed to fetch program: Unknown error");
     }
   }
 
   // Update a program
-  static async updateProgram(programId: string, organizationId: string, updateData: any) {
+  static async updateProgram(
+    programId: number,
+    organizationId: number,
+    updateData: any
+  ) {
     try {
       // First check if program exists and belongs to organization
       const existingProgram = await prisma.program.findFirst({
@@ -98,7 +103,7 @@ export class ProgramService {
       });
 
       if (!existingProgram) {
-        throw new Error('Program not found or access denied');
+        throw new Error("Program not found or access denied");
       }
 
       const updatedProgram = await prisma.program.update({
@@ -107,16 +112,32 @@ export class ProgramService {
         },
         data: {
           ...(updateData.title && { title: updateData.title }),
-          ...(updateData.description && { description: updateData.description }),
-          ...(updateData.website_name && { websiteName: updateData.website_name }),
-          ...(updateData.website_urls && { websiteUrls: updateData.website_urls }),
+          ...(updateData.description && {
+            description: updateData.description,
+          }),
+          ...(updateData.website_name && {
+            websiteName: updateData.website_name,
+          }),
+          ...(updateData.website_urls && {
+            websiteUrls: updateData.website_urls,
+          }),
           ...(updateData.scope && { scope: updateData.scope }),
-          ...(updateData.out_of_scope && { outOfScope: updateData.out_of_scope }),
+          ...(updateData.out_of_scope && {
+            outOfScope: updateData.out_of_scope,
+          }),
           ...(updateData.rewards && { rewards: updateData.rewards }),
-          ...(updateData.submission_guidelines && { submissionGuidelines: updateData.submission_guidelines }),
-          ...(updateData.disclosure_policy && { disclosurePolicy: updateData.disclosure_policy }),
-          ...(updateData.start_date && { startDate: new Date(updateData.start_date) }),
-          ...(updateData.end_date && { endDate: new Date(updateData.end_date) }),
+          ...(updateData.submission_guidelines && {
+            submissionGuidelines: updateData.submission_guidelines,
+          }),
+          ...(updateData.disclosure_policy && {
+            disclosurePolicy: updateData.disclosure_policy,
+          }),
+          ...(updateData.start_date && {
+            startDate: new Date(updateData.start_date),
+          }),
+          ...(updateData.end_date && {
+            endDate: new Date(updateData.end_date),
+          }),
           ...(updateData.status && { status: updateData.status }),
           updatedAt: new Date(),
         },
@@ -127,12 +148,12 @@ export class ProgramService {
       if (error instanceof Error) {
         throw new Error(`Failed to update program: ${error.message}`);
       }
-      throw new Error('Failed to update program: Unknown error');
+      throw new Error("Failed to update program: Unknown error");
     }
   }
 
   // Delete a program
-  static async deleteProgram(programId: string, organizationId: string) {
+  static async deleteProgram(programId: number, organizationId: number) {
     try {
       // First check if program exists and belongs to organization
       const existingProgram = await prisma.program.findFirst({
@@ -143,7 +164,7 @@ export class ProgramService {
       });
 
       if (!existingProgram) {
-        throw new Error('Program not found or access denied');
+        throw new Error("Program not found or access denied");
       }
 
       await prisma.program.delete({
@@ -152,17 +173,21 @@ export class ProgramService {
         },
       });
 
-      return { message: 'Program deleted successfully' };
+      return { message: "Program deleted successfully" };
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Failed to delete program: ${error.message}`);
       }
-      throw new Error('Failed to delete program: Unknown error');
+      throw new Error("Failed to delete program: Unknown error");
     }
   }
 
   // Update program status
-  static async updateProgramStatus(programId: string, organizationId: string, status: string) {
+  static async updateProgramStatus(
+    programId: number,
+    organizationId: number,
+    status: string
+  ) {
     try {
       // First check if program exists and belongs to organization
       const existingProgram = await prisma.program.findFirst({
@@ -173,7 +198,7 @@ export class ProgramService {
       });
 
       if (!existingProgram) {
-        throw new Error('Program not found or access denied');
+        throw new Error("Program not found or access denied");
       }
 
       const updatedProgram = await prisma.program.update({
@@ -191,7 +216,7 @@ export class ProgramService {
       if (error instanceof Error) {
         throw new Error(`Failed to update program status: ${error.message}`);
       }
-      throw new Error('Failed to update program status: Unknown error');
+      throw new Error("Failed to update program status: Unknown error");
     }
   }
 
@@ -200,7 +225,7 @@ export class ProgramService {
     try {
       const programs = await prisma.program.findMany({
         where: {
-          status: 'ACTIVE',
+          status: "ACTIVE",
         },
         select: {
           id: true,
@@ -224,7 +249,7 @@ export class ProgramService {
           },
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
       });
       return programs;
@@ -232,7 +257,7 @@ export class ProgramService {
       if (error instanceof Error) {
         throw new Error(`Failed to fetch public programs: ${error.message}`);
       }
-      throw new Error('Failed to fetch public programs: Unknown error');
+      throw new Error("Failed to fetch public programs: Unknown error");
     }
   }
 }
