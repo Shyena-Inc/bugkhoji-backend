@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = env("PRISMA_BUILD")
 }
 
 datasource db {
@@ -11,123 +12,123 @@ datasource db {
 }
 
 model User {
-  id       Int @id @default(autoincrement())
-  email    String @unique
-  name     String?
-  role     UserRole   @default(RESEARCHER)
-  
+  id    Int      @id @default(autoincrement())
+  email String   @unique
+  name  String?
+  role  UserRole @default(RESEARCHER)
+
   // Enhanced user fields from original schema
-  username     String?  @unique
-  firstName    String?
-  lastName     String?
-  passwordHash String?
-  isActive     Boolean  @default(true)
-  termsAccepted  Boolean @default(false)
-  termsAcceptedAt  DateTime?
+  username              String?   @unique
+  firstName             String?
+  lastName              String?
+  passwordHash          String?
+  isActive              Boolean   @default(true)
+  termsAccepted         Boolean   @default(false)
+  termsAcceptedAt       DateTime?
   // Authentication & Session Management
   lastLogin             DateTime?
   refreshTokenHash      String?
   refreshTokenExpiresAt DateTime?
-  
+
   // Organization relationship
   organization Organization?
-  
+
   // New relations from original schema
-  auditLogs   AuditLog[] @relation("UserAuditLogs")
-  performedBy AuditLog[] @relation("PerformedByUser")
+  auditLogs     AuditLog[]     @relation("UserAuditLogs")
+  performedBy   AuditLog[]     @relation("PerformedByUser")
   sessions      Session[]
   refreshTokens RefreshToken[]
 
   reports Report[]
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("users")
 }
 
 model Organization {
-  id          Int @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   name        String
   description String?
   website     String?
-  
+
   // Enhanced organization fields from original schema
-  address     String?
-  phone       String?
-  logo        String? // URL to logo image
-  industry    String?
-  size        Int? // Number of employees
-  verified    Boolean @default(false)
-  
+  address  String?
+  phone    String?
+  logo     String? // URL to logo image
+  industry String?
+  size     Int? // Number of employees
+  verified Boolean @default(false)
+
   // User relationship (one-to-one)
-  userId Int @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Programs relationship
   programs Program[]
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("organizations")
 }
 
 model Program {
-  id                   Int   @id @default(autoincrement())
+  id                   Int           @id @default(autoincrement())
   title                String
   description          String
   websiteName          String
-  websiteUrls          String[] 
+  websiteUrls          String[]
   scope                String[]
   outOfScope           String?
-  rewards              Json     
+  rewards              Json
   submissionGuidelines String?
   disclosurePolicy     String?
   startDate            DateTime?
   endDate              DateTime?
   reports              Report[]
   status               ProgramStatus @default(DRAFT)
-  
+
   // Organization relationship
   organizationId Int
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
+
   // Submissions relationship
   submissions Submission[]
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("programs")
 }
 
 model Submission {
-  id          Int @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   title       String
   description String
   severity    Severity
   status      SubmissionStatus @default(PENDING)
   reports     Report[]
-  
+
   // Program relationship
   programId Int
   program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
-  
+
   // Researcher info (can be expanded to User model later)
   researcherEmail String
   researcherName  String?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@map("submissions")
 }
 
 // New models from original schema for enhanced functionality
 
 model AuditLog {
-  id         Int      @id @default(autoincrement())
+  id         Int         @id @default(autoincrement())
   action     AuditAction
   entityType String // e.g., "User", "Program", "Organization", etc.
   entityId   Int // ID of the affected record
@@ -135,10 +136,10 @@ model AuditLog {
   newData    Json? // New state (if applicable)
 
   performedById Int
-  performedBy   User   @relation("PerformedByUser", fields: [performedById], references: [id])
+  performedBy   User @relation("PerformedByUser", fields: [performedById], references: [id])
 
   userId Int?
-  user   User?   @relation("UserAuditLogs", fields: [userId], references: [id])
+  user   User? @relation("UserAuditLogs", fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -149,26 +150,26 @@ model AuditLog {
 }
 
 model Session {
-  id            Int   @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   userId        Int
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   ipAddress     String?
   userAgent     String
   deviceType    String?
   deviceOS      String?
   deviceBrowser String?
   location      String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  lastSeen      DateTime @updatedAt
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  lastSeen      DateTime       @updatedAt
   expiresAt     DateTime
   refreshTokens RefreshToken[]
-  
+
   @@map("sessions")
 }
 
 model RefreshToken {
-  id        Int   @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   token     String   @unique
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -176,12 +177,12 @@ model RefreshToken {
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   expiresAt DateTime
-  
+
   @@map("refresh_tokens")
 }
 
 model Otp {
-  id        Int   @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   email     String
   code      String
   createdAt DateTime @default(now())
@@ -236,37 +237,37 @@ enum AuditAction {
 }
 
 model Report {
-  id          Int       @id @default(autoincrement())
+  id          Int          @id @default(autoincrement())
   title       String
   description String?
   content     String
   status      ReportStatus @default(DRAFT)
   type        ReportType   @default(GENERAL)
-  
+
   // Link to existing User model
-  authorId    Int
-  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
   // Optional: Link to programs if reports are program-specific
-  programId   Int?
-  program     Program?     @relation(fields: [programId], references: [id], onDelete: SetNull)
-  
+  programId Int?
+  program   Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+
   // Optional: Link to submissions if reports are submission-related
   submissionId Int?
   submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
-  
-  tags        String[]     // Array of tags for categorization
-  priority    Priority     @default(MEDIUM)
-  isPublic    Boolean      @default(false)
-  
-  attachments Json?        // Store file URLs/paths as JSON
-  metadata  Json? 
-  
+
+  tags     String[] // Array of tags for categorization
+  priority Priority @default(MEDIUM)
+  isPublic Boolean  @default(false)
+
+  attachments Json? // Store file URLs/paths as JSON
+  metadata    Json?
+
   // Timestamps
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   publishedAt DateTime?
-  
+
   @@index([authorId])
   @@index([programId])
   @@index([submissionId])
@@ -299,11 +300,11 @@ enum Priority {
 }
 
 model HealthCheck {
-  id        Int   @id @default(autoincrement())
-  status    String   // "healthy" | "unhealthy"
+  id        Int      @id @default(autoincrement())
+  status    String // "healthy" | "unhealthy"
   timestamp DateTime @default(now())
   service   String   @default("api")
-  metadata  Json?    // Store additional health info
-  
+  metadata  Json? // Store additional health info
+
   @@map("health_checks")
 }

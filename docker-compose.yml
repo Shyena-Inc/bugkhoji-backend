@@ -1,15 +1,19 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      target: builder
     container_name: bugkhoji-backend
     restart: unless-stopped
     ports:
       - "3000:3000"
-    environment:
-      - DATABASE_NAME=${DATABASE_NAME}
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
-      - DATABASE_USER=${DATABASE_USER}
-      - DATABASE_HOST=${DATABASE_HOST}
+    env_file:
+      - ./.env
+    # environment:
+    #   - DATABASE_NAME=${DATABASE_NAME}
+    #   - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+    #   - DATABASE_USER=${DATABASE_USER}
+    #   - DATABASE_HOST=${DATABASE_HOST}
     depends_on:
       - bugkhoji_db
     volumes:
@@ -20,9 +24,9 @@ services:
     container_name: postgres_db
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=${DATABASE_USER}
-      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
-      - POSTGRES_DB=${DATABASE_NAME}
+      - POSTGRES_USER=bugkhoji
+      - POSTGRES_PASSWORD=bugkhoji
+      - POSTGRES_DB=bugkhoji
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
