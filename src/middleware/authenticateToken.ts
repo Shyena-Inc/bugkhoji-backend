@@ -5,10 +5,10 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 interface JWTPayload {
-  id: number;
+  id: string;
   email: string;
   role: string;
-  sessionId: number;
+  sessionId: string;
 }
 
 export async function authenticateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -62,7 +62,7 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
       email: user.email,
       role: user.role,
       isActive: user.isActive,
-      sessionId: decoded.sessionId.toString(),
+      sessionId: decoded.sessionId,
     };
     next();
   } catch (error) {

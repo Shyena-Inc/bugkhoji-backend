@@ -14,9 +14,9 @@ export async function createAuditLog(
       data: {
         action: data.action as AuditAction,
         entityType: data.entity,
-        entityId: data.entityId,
-        performedById: data.userId,
-        userId: data.userId,
+        entityId: data.entityId.toString(),
+        performedById: data.userId.toString(),
+        userId: data.userId.toString(),
         newData: {
           details: data.details,
           ipAddress: req.ip,

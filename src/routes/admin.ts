@@ -11,7 +11,7 @@ router.patch('/authorize-user/:id', authenticate as RequestHandler, isAdmin as R
 
   try {
     const updatedUser = await prisma.user.update({
-      where: { id: +userId },
+      where: { id: userId },
       data: { isActive: true }, 
     });
 

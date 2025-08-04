@@ -46,8 +46,8 @@ export interface UpdateReportDTO {
   status?: ReportStatus;
   type?: ReportType;
   priority?: Priority;
-  programId?: number;
-  submissionId?: number;
+  programId?: string;
+  submissionId?: string;
   tags?: string[];
   isPublic?: boolean;
   metadata?: Record<string, any>;
