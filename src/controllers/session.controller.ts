@@ -16,8 +16,8 @@ export async function createSession(req: Request, userId: string) {
 
     const session = await prisma.session.create({
       data: {
-        id: +sessionId,
-        userId:+userId,
+        id: sessionId,
+        userId: userId,
         userAgent,
         ipAddress: ip,
         deviceOS: '',
@@ -97,7 +97,7 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
 export async function updateSessionActivity(sessionId: string) {
   try {
     await prisma.session.update({
-      where: { id: +sessionId },
+      where: { id: sessionId },
       data: { lastSeen: new Date() }
     });
   } catch (error) {

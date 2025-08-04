@@ -1,10 +1,9 @@
-
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
-  // binaryTargets = env("PRISMA_BUILD") // Uncomment and set PRISMA_BUILD env var if needed
+  provider      = "prisma-client-js"
+  binaryTargets = env("PRISMA_BUILD")
 }
 
 datasource db {
@@ -13,7 +12,7 @@ datasource db {
 }
 
 model User {
-  id    String   @id @default(cuid())
+  id    Int      @id @default(autoincrement())
   email String   @unique
   name  String?
   role  UserRole @default(RESEARCHER)
@@ -49,7 +48,7 @@ model User {
 }
 
 model Organization {
-  id          String  @id @default(cuid())
+  id          Int     @id @default(autoincrement())
   name        String
   description String?
   website     String?
@@ -63,8 +62,8 @@ model Organization {
   verified Boolean @default(false)
 
   // User relationship (one-to-one)
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Programs relationship
   programs Program[]
@@ -76,7 +75,7 @@ model Organization {
 }
 
 model Program {
-  id                   String        @id @default(cuid())
+  id                   Int           @id @default(autoincrement())
   title                String
   description          String
   websiteName          String
@@ -92,7 +91,7 @@ model Program {
   status               ProgramStatus @default(DRAFT)
 
   // Organization relationship
-  organizationId String
+  organizationId Int
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   // Submissions relationship
@@ -105,7 +104,7 @@ model Program {
 }
 
 model Submission {
-  id          String           @id @default(cuid())
+  id          Int              @id @default(autoincrement())
   title       String
   description String
   severity    Severity
@@ -113,7 +112,7 @@ model Submission {
   reports     Report[]
 
   // Program relationship
-  programId String
+  programId Int
   program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
   // Researcher info (can be expanded to User model later)
@@ -129,18 +128,18 @@ model Submission {
 // New models from original schema for enhanced functionality
 
 model AuditLog {
-  id         String      @id @default(cuid())
+  id         Int         @id @default(autoincrement())
   action     AuditAction
   entityType String // e.g., "User", "Program", "Organization", etc.
-  entityId   String // ID of the affected record
+  entityId   Int // ID of the affected record
   oldData    Json? // Previous state (if applicable)
   newData    Json? // New state (if applicable)
 
-  performedById String
-  performedBy   User   @relation("PerformedByUser", fields: [performedById], references: [id])
+  performedById Int
+  performedBy   User @relation("PerformedByUser", fields: [performedById], references: [id])
 
-  userId String?
-  user   User?   @relation("UserAuditLogs", fields: [userId], references: [id])
+  userId Int?
+  user   User? @relation("UserAuditLogs", fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -151,8 +150,8 @@ model AuditLog {
 }
 
 model Session {
-  id            String         @id @default(cuid())
-  userId        String
+  id            Int            @id @default(autoincrement())
+  userId        Int
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   ipAddress     String?
   userAgent     String
@@ -170,11 +169,11 @@ model Session {
 }
 
 model RefreshToken {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   token     String   @unique
-  userId    String
+  userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId String
+  sessionId Int
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   expiresAt DateTime
@@ -183,7 +182,7 @@ model RefreshToken {
 }
 
 model Otp {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   email     String
   code      String
   createdAt DateTime @default(now())
@@ -238,7 +237,7 @@ enum AuditAction {
 }
 
 model Report {
-  id          String       @id @default(cuid())
+  id          Int          @id @default(autoincrement())
   title       String
   description String?
   content     String
@@ -246,15 +245,15 @@ model Report {
   type        ReportType   @default(GENERAL)
 
   // Link to existing User model
-  authorId String
-  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   // Optional: Link to programs if reports are program-specific
-  programId String?
+  programId Int?
   program   Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
 
   // Optional: Link to submissions if reports are submission-related
-  submissionId String?
+  submissionId Int?
   submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
 
   tags     String[] // Array of tags for categorization
@@ -301,7 +300,7 @@ enum Priority {
 }
 
 model HealthCheck {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   status    String // "healthy" | "unhealthy"
   timestamp DateTime @default(now())
   service   String   @default("api")

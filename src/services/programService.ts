@@ -9,7 +9,7 @@ export class ProgramService {
     try {
       const program = await prisma.program.create({
         data: {
-          organizationId,
+          organizationId: organizationId.toString(),
           title: programData.title,
           description: programData.description,
           websiteName: programData.website_name,
@@ -40,7 +40,7 @@ export class ProgramService {
     try {
       const programs = await prisma.program.findMany({
         where: {
-          organizationId,
+          organizationId: organizationId.toString(),
         },
         orderBy: {
           createdAt: "desc",
@@ -69,8 +69,8 @@ export class ProgramService {
     try {
       const program = await prisma.program.findFirst({
         where: {
-          id: programId,
-          organizationId,
+          id: programId.toString(),
+          organizationId: organizationId.toString(),
         },
       });
 
@@ -97,8 +97,8 @@ export class ProgramService {
       // First check if program exists and belongs to organization
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: programId,
-          organizationId,
+          id: programId.toString(),
+          organizationId: organizationId.toString(),
         },
       });
 
@@ -108,7 +108,7 @@ export class ProgramService {
 
       const updatedProgram = await prisma.program.update({
         where: {
-          id: programId,
+          id: programId.toString(),
         },
         data: {
           ...(updateData.title && { title: updateData.title }),
@@ -158,8 +158,8 @@ export class ProgramService {
       // First check if program exists and belongs to organization
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: programId,
-          organizationId,
+          id: programId.toString(),
+          organizationId: organizationId.toString(),
         },
       });
 
@@ -169,7 +169,7 @@ export class ProgramService {
 
       await prisma.program.delete({
         where: {
-          id: programId,
+          id: programId.toString(),
         },
       });
 
@@ -192,8 +192,8 @@ export class ProgramService {
       // First check if program exists and belongs to organization
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: programId,
-          organizationId,
+          id: programId.toString(),
+          organizationId: organizationId.toString(),
         },
       });
 
@@ -203,7 +203,7 @@ export class ProgramService {
 
       const updatedProgram = await prisma.program.update({
         where: {
-          id: programId,
+          id: programId.toString(),
         },
         data: {
           status: status as any, // Cast to any to bypass type error, or import and use ProgramStatus enum if available

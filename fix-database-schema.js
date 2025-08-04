@@ -1,10 +1,39 @@
+#!/usr/bin/env node
 
+/**
+ * Database Schema Fix Script
+ * 
+ * This script fixes the schema inconsistencies that are causing 500 errors
+ * in your deployed backend.
+ */
+
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+console.log('🔧 Starting Database Schema Fix...\n');
+
+// Step 1: Backup current schema
+console.log('1️⃣ Creating schema backup...');
+try {
+  const schemaPath = path.join(__dirname, 'prisma', 'schema.prisma');
+  const backupPath = path.join(__dirname, 'prisma', 'schema.prisma.backup');
+  fs.copyFileSync(schemaPath, backupPath);
+  console.log('✅ Schema backed up to schema.prisma.backup\n');
+} catch (error) {
+  console.error('❌ Failed to backup schema:', error.message);
+  process.exit(1);
+}
+
+// Step 2: Fix the schema ID type consistency
+console.log('2️⃣ Fixing schema ID type consistency...');
+const fixedSchema = `
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
-  // binaryTargets = env("PRISMA_BUILD") // Uncomment and set PRISMA_BUILD env var if needed
+  provider      = "prisma-client-js"
+  binaryTargets = env("PRISMA_BUILD")
 }
 
 datasource db {
@@ -309,3 +338,42 @@ model HealthCheck {
 
   @@map("health_checks")
 }
+`;
+
+try {
+  const schemaPath = path.join(__dirname, 'prisma', 'schema.prisma');
+  fs.writeFileSync(schemaPath, fixedSchema);
+  console.log('✅ Schema updated with consistent string IDs\n');
+} catch (error) {
+  console.error('❌ Failed to update schema:', error.message);
+  process.exit(1);
+}
+
+// Step 3: Generate Prisma client
+console.log('3️⃣ Generating Prisma client...');
+try {
+  execSync('npx prisma generate', { stdio: 'inherit' });
+  console.log('✅ Prisma client generated\n');
+} catch (error) {
+  console.error('❌ Failed to generate Prisma client:', error.message);
+  process.exit(1);
+}
+
+// Step 4: Instructions for deployment
+console.log('4️⃣ Next steps for deployment:\n');
+console.log('🚀 DEPLOYMENT INSTRUCTIONS:');
+console.log('1. Deploy this updated schema to your production database');
+console.log('2. Run: npx prisma db push --force-reset (⚠️  This will reset your data!)');
+console.log('3. Or create a new migration: npx prisma migrate dev --name fix-id-types');
+console.log('4. Ensure your environment variables are set correctly:');
+console.log('   - DATABASE_URL (PostgreSQL connection string)');
+console.log('   - JWT_SECRET');
+console.log('   - All other required environment variables');
+console.log('5. Redeploy your backend application\n');
+
+console.log('✅ Database schema fix completed!');
+console.log('\n📝 Summary of changes:');
+console.log('- Changed all ID fields from Int to String with @default(cuid())');
+console.log('- Fixed foreign key relationships to use string IDs');
+console.log('- Made schema consistent with existing migrations');
+console.log('\n⚠️  WARNING: This change requires database reset or careful migration!');

@@ -151,7 +151,7 @@ export class ProgramController {
 
       const program = await prisma.program.findFirst({
         where: {
-          id: +programId,
+          id: programId,
           organizationId: organization.id
         },
         include: {
@@ -248,7 +248,7 @@ export class ProgramController {
 
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: +programId,
+          id: programId,
           organizationId: organization.id
         }
       });
@@ -273,7 +273,7 @@ export class ProgramController {
       if (status !== undefined) updateData.status = status;
 
       const updatedProgram = await prisma.program.update({
-        where: { id: +programId },
+        where: { id: programId },
         data: updateData,
         include: {
           organization: {
@@ -319,7 +319,7 @@ export class ProgramController {
 
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: +programId,
+          id: programId,
           organizationId: organization.id
         }
       });
@@ -330,7 +330,7 @@ export class ProgramController {
       }
 
       await prisma.program.delete({
-        where: { id: +programId }
+        where: { id: programId }
       });
 
       res.json({
@@ -376,7 +376,7 @@ export class ProgramController {
 
       const existingProgram = await prisma.program.findFirst({
         where: {
-          id: +programId,
+          id: programId,
           organizationId: organization.id
         }
       });
@@ -387,7 +387,7 @@ export class ProgramController {
       }
 
       const updatedProgram = await prisma.program.update({
-        where: { id: +programId },
+        where: { id: programId },
         data: { status },
         include: {
           organization: {
@@ -470,7 +470,7 @@ export class ProgramController {
       }
 
       const program = await prisma.program.findUnique({
-        where: { id: +programId },
+        where: { id: programId },
         include: {
           organization: {
             select: {

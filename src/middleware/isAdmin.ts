@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 
 interface CustomRequest extends Request {
   user?: {
-    id: number;
+    id: string;
     email: string;
     role: UserRole; 
     isActive: boolean;

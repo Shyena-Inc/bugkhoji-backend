@@ -31,24 +31,21 @@ const CORS_WHITELIST = [
 
 app.use(helmet());
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-
-      if (CORS_WHITELIST.indexOf(origin) === -1) {
-        return callback(new Error("Not allowed by CORS"), false);
-      }
-
-      return callback(null, true);
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-  })
-);
+app.options('*', cors({
+  origin: (origin, callback) => {
+    if (!origin || CORS_WHITELIST.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE"],
+}));
 
 app.use(express.json());
 app.use(cookieParser());
+
 app.use("/v1", authRoutes);
 app.use("/login/researcher", rateLimiting);
 app.use("/login/admin", rateLimiting);

@@ -22,7 +22,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: {
-        id: number;
+        id: string;
         email: string;
         role: UserRole;
         isActive: boolean;
@@ -176,7 +176,7 @@ export async function authenticate(
 
     // Fetch user from database with error handling
     const user = await prisma.user.findUnique({
-      where: { id: +decoded.id },
+      where: { id: decoded.id },
       select: {
         id: true,
         email: true,
@@ -342,7 +342,7 @@ export async function optionalAuth(
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: +decoded.id },
+      where: { id: decoded.id },
       select: { id: true, email: true, role: true, isActive: true },
     });
 
