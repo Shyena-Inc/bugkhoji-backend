@@ -26,12 +26,13 @@ const CORS_WHITELIST = [
   "https://bugkhoji.com",
   "https://www.bugkhoji.com",
   "http://localhost:8080",
+  "http://localhost:3000",
   "https://api.bugkhoji.com"
 ];
 
 app.use(helmet());
 
-app.options('*', cors({
+app.use(cors({
   origin: (origin, callback) => {
     if (!origin || CORS_WHITELIST.includes(origin)) {
       callback(null, true);
@@ -40,11 +41,15 @@ app.options('*', cors({
     }
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 }));
 
 app.use(express.json());
 app.use(cookieParser());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
 
 app.use("/v1", authRoutes);
 app.use("/login/researcher", rateLimiting);

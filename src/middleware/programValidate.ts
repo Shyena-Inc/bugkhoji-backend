@@ -10,7 +10,7 @@ export const validateProgramData = (
   const {
     title,
     description,
-    software_name,
+    websiteName,
     scope,
     rewards
   } = req.body;
@@ -18,9 +18,9 @@ export const validateProgramData = (
   const missingFields = [];
   if (!title) missingFields.push("title");
   if (!description) missingFields.push("description");
-  if (!software_name) missingFields.push("software_name");
-  if (!scope) missingFields.push("scope");
-  if (!rewards) missingFields.push("rewards");
+  if (!websiteName) missingFields.push("websiteName");
+  if (!scope || (Array.isArray(scope) && scope.length === 0)) missingFields.push("scope");
+  if (!rewards || Object.keys(rewards).length === 0) missingFields.push("rewards");
 
   if (missingFields.length > 0) {
     res.status(400).json({
@@ -62,25 +62,34 @@ export const validateDateRange = (
   res: Response,
   next: NextFunction
 ): void => {
-  const { start_date, end_date } = req.body;
+  const { startDate, endDate } = req.body;
 
-  if (start_date && end_date) {
-    const startDate = new Date(start_date);
-    const endDate = new Date(end_date);
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
-    if (startDate >= endDate) {
+    // Check if dates are valid
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      res.status(400).json({
+        message: "Invalid date format. Please use ISO 8601 format (YYYY-MM-DD)"
+      });
+      return;
+    }
+
+    if (start >= end) {
       res.status(400).json({
         message: "Start date must be before end date"
       });
       return;
     }
 
-    if (startDate < new Date()) {
-      res.status(400).json({
-        message: "Start date cannot be in the past"
-      });
-      return;
-    }
+    // Allow past dates for flexibility (remove this check if needed)
+    // if (start < new Date()) {
+    //   res.status(400).json({
+    //     message: "Start date cannot be in the past"
+    //   });
+    //   return;
+    // }
   }
 
   next();
@@ -101,12 +110,24 @@ export const validateRewards = (
     return;
   }
 
-  const requiredLevels = ["critical", "high", "medium", "low"];
-  const missingLevels = requiredLevels.filter(level => !rewards[level]);
+  const validLevels = ["critical", "high", "medium", "low"];
+  const providedLevels = Object.keys(rewards);
 
-  if (missingLevels.length > 0) {
+  // Check if at least one valid reward level is provided
+  const hasValidLevel = providedLevels.some(level => validLevels.includes(level) && rewards[level]);
+
+  if (!hasValidLevel) {
     res.status(400).json({
-      message: `Missing reward levels: ${missingLevels.join(", ")}`
+      message: `At least one reward level must be provided. Valid levels: ${validLevels.join(", ")}`
+    });
+    return;
+  }
+
+  // Validate that provided levels are valid
+  const invalidLevels = providedLevels.filter(level => !validLevels.includes(level));
+  if (invalidLevels.length > 0) {
+    res.status(400).json({
+      message: `Invalid reward levels: ${invalidLevels.join(", ")}. Valid levels: ${validLevels.join(", ")}`
     });
     return;
   }
