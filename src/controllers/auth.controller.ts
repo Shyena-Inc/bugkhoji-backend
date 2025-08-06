@@ -89,12 +89,11 @@ const handleLoginSuccess = async (
       sessionId: session.id,
     });
 
-    const { token: refreshToken } = await generateRefreshToken(user.id, session.id);
+    const { token: refreshToken } = await generateRefreshToken(user.id);
 
     // Set refresh token cookie
     setRefreshTokenCookie(res, refreshToken);
     setAccessTokenCookie(res, accessToken);
-
 
     // Create audit log for successful login
     await createAuditLog(
@@ -500,8 +499,8 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
 
     // For old tokens, we'll skip the database verification since they won't be in the refresh_tokens table
     if (decoded.sessionId) {
-      // Verify refresh token only for new tokens that have sessionId
-      const isValid = await verifyRefreshToken(refreshToken, decoded.id, sessionId); // Both now strings
+      // ✅ FIXED: Only pass token and userId (removed sessionId)
+      const isValid = await verifyRefreshToken(refreshToken, decoded.id);
       
       if (!isValid) {
         logger.warn(`Invalid refresh token used for session: ${sessionId}`);
@@ -538,7 +537,8 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
       sessionId: sessionId,
     });
 
-    const { token: newRefreshToken } = await generateRefreshToken(user.id, sessionId); // Both now strings
+    // ✅ FIXED: Only pass userId (removed sessionId)
+    const { token: newRefreshToken } = await generateRefreshToken(user.id);
 
     // Set both tokens as cookies
     setRefreshTokenCookie(res, newRefreshToken);
@@ -575,8 +575,8 @@ export async function logout(req: Request, res: Response): Promise<void> {
         data: { isActive: false, expiresAt: new Date() },
       });
 
-      // Invalidate refresh token
-      await invalidateRefreshToken(userId, sessionId); // Both now strings
+      // ✅ FIXED: Only pass userId (removed sessionId)
+      await invalidateRefreshToken(userId);
 
       // Create audit log
       await createAuditLog(
@@ -593,6 +593,7 @@ export async function logout(req: Request, res: Response): Promise<void> {
 
     // Clear refresh token cookie
     res.clearCookie("refreshToken");
+    res.clearCookie("accessToken");
 
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
