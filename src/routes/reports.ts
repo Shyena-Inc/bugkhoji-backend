@@ -13,7 +13,7 @@ const router = express.Router();
 
 router.get("/",authenticate,validate(reportQuerySchema), reportController.getAllReports,);
 
-router.post("/", authenticate, validate(createReportSchema), reportController.createReport );
+router.post("/:id", authenticate, validate(createReportSchema), reportController.createReport );
 
 router.get( "/my-reports", authenticate, validateQuery(reportQuerySchema), reportController.getMyReports);
 
