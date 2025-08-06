@@ -40,7 +40,7 @@ export function setAccessTokenCookie(res: Response, token: string): void {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     sameSite: false,
-    maxAge: 15 * 60 * 1000, // 15 minutes (access tokens should have shorter expiry)
+    maxAge: 30 * 60 * 1000, // 15 minutes (access tokens should have shorter expiry)
     path: '/',
   });
 }

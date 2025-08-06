@@ -340,7 +340,7 @@ export const extractTokenFromHeader = (authHeader: string | undefined): string |
     return null;
   }
 
-  return authHeader.substring(7); // Remove 'Bearer ' prefix
+  return authHeader.substring(7); 
 };
 
 export const isTokenExpired = (token: string): boolean => {
