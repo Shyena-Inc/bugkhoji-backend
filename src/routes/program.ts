@@ -98,19 +98,19 @@ router.get(
 );
 
 // ==== Logo management routes ====
-// Upload program logo (organization only)
-router.post(
-  "/programs/:id/logo",
-  requireActiveOrganization,
-  uploadProgramLogo.single('logo'),
-  ProgramController.uploadProgramLogo
-);
+// // Upload program logo (organization only)
+// router.post(
+//   "/programs/:id/logo",
+//   requireActiveOrganization,
+//   uploadProgramLogo.single('logo'),
+//   ProgramController.uploadProgramLogo
+// );
 
-// Delete program logo (organization only)
-router.delete(
-  "/programs/:id/logo",
-  requireActiveOrganization,
-  ProgramController.deleteProgramLogo
-);
+// // Delete program logo (organization only)
+// router.delete(
+//   "/programs/:id/logo",
+//   requireActiveOrganization,
+//   ProgramController.deleteProgramLogo
+// );
 
 export default router;
