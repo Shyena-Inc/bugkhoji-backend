@@ -30,7 +30,7 @@ const setRefreshTokenCookie = (res: Response, refreshToken: string): void => {
   res.cookie("refreshToken", refreshToken, {
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",
-    sameSite: false,
+    sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };
@@ -39,7 +39,7 @@ export function setAccessTokenCookie(res: Response, token: string): void {
   res.cookie('accessToken', token, {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: false,
+    sameSite: 'lax',
     maxAge: 30 * 60 * 1000, // 15 minutes (access tokens should have shorter expiry)
     path: '/',
   });

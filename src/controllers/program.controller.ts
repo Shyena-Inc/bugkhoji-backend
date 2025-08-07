@@ -742,155 +742,155 @@ export class ProgramController {
     }
   }
 
-  // ============================
-  // Logo management methods
-  // ============================
+//   // ============================
+//   // Logo management methods
+//   // ============================
 
-  // Upload program logo (organization only)
-  static async uploadProgramLogo(req: Request, res: Response): Promise<void> {
-    try {
-      const programId = req.params.id;
+//   // Upload program logo (organization only)
+//   static async uploadProgramLogo(req: Request, res: Response): Promise<void> {
+//     try {
+//       const programId = req.params.id;
       
-      if (!req.user?.id) {
-        res.status(401).json({ message: "Authentication required" });
-        return;
-      }
+//       if (!req.user?.id) {
+//         res.status(401).json({ message: "Authentication required" });
+//         return;
+//       }
 
-      if (!req.file) {
-        res.status(400).json({ message: "No image file provided" });
-        return;
-      }
+//       if (!req.file) {
+//         res.status(400).json({ message: "No image file provided" });
+//         return;
+//       }
 
-      const organization = await prisma.organization.findUnique({
-        where: { userId: req.user.id }
-      });
+//       const organization = await prisma.organization.findUnique({
+//         where: { userId: req.user.id }
+//       });
 
-      if (!organization) {
-        res.status(404).json({ message: "Organization not found" });
-        return;
-      }
+//       if (!organization) {
+//         res.status(404).json({ message: "Organization not found" });
+//         return;
+//       }
 
-      const existingProgram = await prisma.program.findFirst({
-        where: {
-          id: programId,
-          organizationId: organization.id
-        },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
+//       const existingProgram = await prisma.program.findFirst({
+//         where: {
+//           id: programId,
+//           organizationId: organization.id
+//         },
+//         include: {
+//           organization: {
+//             select: {
+//               id: true,
+//               name: true
+//             }
+//           }
+//         }
+//       });
 
-      if (!existingProgram) {
-        res.status(404).json({ message: "Program not found or access denied" });
-        return;
-      }
+//       if (!existingProgram) {
+//         res.status(404).json({ message: "Program not found or access denied" });
+//         return;
+//       }
 
-      // Delete old logo if exists
-      if (existingProgram.logo) {
-        const oldLogoPath = path.join(process.cwd(), 'uploads', 'program-logos', path.basename(existingProgram.logo));
-        deleteLogoFile(oldLogoPath);
-      }
+//       // Delete old logo if exists
+//       if (existingProgram.logo) {
+//         const oldLogoPath = path.join(process.cwd(), 'uploads', 'program-logos', path.basename(existingProgram.logo));
+//         deleteLogoFile(oldLogoPath);
+//       }
 
-      // Save new logo URL to database
-      const logoUrl = getLogoUrl(req.file.filename);
-      const updatedProgram = await prisma.program.update({
-        where: { id: programId },
-        data: { 
-          logo: logoUrl 
-        },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
+//       // Save new logo URL to database
+//       const logoUrl = getLogoUrl(req.file.filename);
+//       const updatedProgram = await prisma.program.update({
+//         where: { id: programId },
+//         data: { 
+//           logo: logoUrl 
+//         },
+//         include: {
+//           organization: {
+//             select: {
+//               id: true,
+//               name: true
+//             }
+//           }
+//         }
+//       });
 
-      res.json({
-        message: "Program logo uploaded successfully",
-        program: updatedProgram,
-        logoUrl
-      });
-    } catch (error) {
-      console.error("Error uploading program logo:", error);
-      res.status(500).json({
-        message: "Failed to upload program logo",
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
+//       res.json({
+//         message: "Program logo uploaded successfully",
+//         program: updatedProgram,
+//         logoUrl
+//       });
+//     } catch (error) {
+//       console.error("Error uploading program logo:", error);
+//       res.status(500).json({
+//         message: "Failed to upload program logo",
+//         error: error instanceof Error ? error.message : String(error)
+//       });
+//     }
+//   }
 
-  // Delete program logo (organization only)
-  static async deleteProgramLogo(req: Request, res: Response): Promise<void> {
-    try {
-      const programId = req.params.id;
+//   // Delete program logo (organization only)
+//   static async deleteProgramLogo(req: Request, res: Response): Promise<void> {
+//     try {
+//       const programId = req.params.id;
       
-      if (!req.user?.id) {
-        res.status(401).json({ message: "Authentication required" });
-        return;
-      }
+//       if (!req.user?.id) {
+//         res.status(401).json({ message: "Authentication required" });
+//         return;
+//       }
 
-      const organization = await prisma.organization.findUnique({
-        where: { userId: req.user.id }
-      });
+//       const organization = await prisma.organization.findUnique({
+//         where: { userId: req.user.id }
+//       });
 
-      if (!organization) {
-        res.status(404).json({ message: "Organization not found" });
-        return;
-      }
+//       if (!organization) {
+//         res.status(404).json({ message: "Organization not found" });
+//         return;
+//       }
 
-      const existingProgram = await prisma.program.findFirst({
-        where: {
-          id: programId,
-          organizationId: organization.id
-        }
-      });
+//       const existingProgram = await prisma.program.findFirst({
+//         where: {
+//           id: programId,
+//           organizationId: organization.id
+//         }
+//       });
 
-      if (!existingProgram) {
-        res.status(404).json({ message: "Program not found or access denied" });
-        return;
-      }
+//       if (!existingProgram) {
+//         res.status(404).json({ message: "Program not found or access denied" });
+//         return;
+//       }
 
-      if (!existingProgram.logo) {
-        res.status(404).json({ message: "Program has no logo to delete" });
-        return;
-      }
+//       if (!existingProgram.logo) {
+//         res.status(404).json({ message: "Program has no logo to delete" });
+//         return;
+//       }
 
-      // Delete logo file
-      const logoPath = path.join(process.cwd(), 'uploads', 'program-logos', path.basename(existingProgram.logo));
-      deleteLogoFile(logoPath);
+//       // Delete logo file
+//       const logoPath = path.join(process.cwd(), 'uploads', 'program-logos', path.basename(existingProgram.logo));
+//       deleteLogoFile(logoPath);
 
-      // Remove logo URL from database
-      const updatedProgram = await prisma.program.update({
-        where: { id: programId },
-        data: { logo: null },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        }
-      });
+//       // Remove logo URL from database
+//       const updatedProgram = await prisma.program.update({
+//         where: { id: programId },
+//         data: { logo: null },
+//         include: {
+//           organization: {
+//             select: {
+//               id: true,
+//               name: true
+//             }
+//           }
+//         }
+//       });
 
-      res.json({
-        message: "Program logo deleted successfully",
-        program: updatedProgram
-      });
-    } catch (error) {
-      console.error("Error deleting program logo:", error);
-      res.status(500).json({
-        message: "Failed to delete program logo",
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
+//       res.json({
+//         message: "Program logo deleted successfully",
+//         program: updatedProgram
+//       });
+//     } catch (error) {
+//       console.error("Error deleting program logo:", error);
+//       res.status(500).json({
+//         message: "Failed to delete program logo",
+//         error: error instanceof Error ? error.message : String(error)
+//       });
+//     }
+//   }
 }
